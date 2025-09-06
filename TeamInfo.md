@@ -1,17 +1,17 @@
-# team000-sample
+# team126
 
 ## Basic Information
 
 |   Info      |        Description     |
 | ----------- | ---------------------- |
-| TeamID      |        Team-000        |
-| TeamName    |         sample         |
-| Captain     |       Abdu Alawini     |
-| Captain     |  alawini@illinois.edu  |
-| Member1     |  Shadman Saqib Eusuf   |
-| Member1     |  seusuf2@illinois.edu  |
-| Member2     |     Aryaman Nasare     |
-| Member2     |  nasare2@illinois.edu  |
+| TeamID      |         Team-126       |
+| TeamName    |           YSQL         |
+| Captain     |     Chitsimran Singh   |
+| Captain     |  chitsim2@illinois.edu |
+| Member1     |   Satwik Mallajosyula  |
+| Member1     |   ssm27@illinois.edu   |
+| Member2     |                        |
+| Member2     |                        |
 | Member3     |                        |
 | Member3     |                        |
 
