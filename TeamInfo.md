@@ -10,10 +10,10 @@
 | Captain     |  chitsim2@illinois.edu |
 | Member1     |   Satwik Mallajosyula  |
 | Member1     |   ssm27@illinois.edu   |
-| Member2     |                        |
-| Member2     |                        |
-| Member3     |                        |
-| Member3     |                        |
+| Member2     |     Bharath Ganesh     |
+| Member2     |        bganesh2        |
+| Member3     |       Hardik Lad       |
+| Member3     |         hlad2          |
 
 ## Project Information
 
