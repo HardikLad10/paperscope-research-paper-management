@@ -31,7 +31,10 @@ We will use [OpenReview API](https://docs.openreview.net/reference/api-v1/openap
 
 # Functionality
 
-The Internal Paper Review System enables authors, reviewers to manage papers and reviews efficiently.
+The Internal Paper Review System enables authors and reviewers to manage papers and reviews efficiently.
+
+Mock UI:
+<img width="1600" height="863" alt="image" src="https://github.com/user-attachments/assets/12ff9744-1fc0-4d5d-b8d4-ffaafa88a495" />
 
 Authors:
 
