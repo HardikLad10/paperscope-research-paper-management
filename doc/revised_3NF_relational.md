@@ -2,7 +2,7 @@
 
 We have the following FDs for our design.
 
-- Users (`UID -> profile_url, email, user_name, affiliation`)
+- Users (`UID -> profile_url, email, user_name, affiliation, is_reviewer`)
 - Papers (`PAID -> PRID, DID, VID, paper_title, abstract, pdf_url, upload_timestamp, status`)
 - Projects (`PRID -> project_title, desc, project_timestamp`)
 - Datasets (`DID -> dataset_name, dataset_url, domain, access_type`)
@@ -25,7 +25,7 @@ We will verify for each relation and the FDs that apply inside it:
 
 1. Users(UID, profile_url, email, user_name, affiliation)
 
-FD: `UID -> profile_url,email,user_name,affiliation`
+FD: `UID -> profile_url,email,user_name,affiliation, is_reviewer`
 
 UID is the primary key (superkey) -> satisfies 3NF.
 
@@ -76,7 +76,7 @@ Because every non-key attribute in each relation is fully functionally dependent
 
 ## Relational Schema
 
-Users(UID:INT [PK], profile_url:VARCHAR(255), email:VARCHAR(255), user_name:VARCHAR(255), affiliation:VARCHAR(255))
+Users(UID:INT [PK], profile_url:VARCHAR(255), email:VARCHAR(255), user_name:VARCHAR(255), affiliation:VARCHAR(255), is_reviewer:BOOLEAN)
 
 Papers(PAID:INT [PK], PRID:INT [FK to Projects.PRID], DID:INT [FK to Datasets.DID], VID:INT [FK to Venues.VID], paper_title:VARCHAR(255), abstract:TEXT, pdf_url:VARCHAR(255), upload_timestamp:DATETIME, status:VARCHAR(50))
 
