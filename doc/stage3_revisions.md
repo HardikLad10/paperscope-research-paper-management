@@ -3,9 +3,9 @@
 We addressed the following comment from stage 3:
 ```-7. The report only showed 1 index per query. The concept is to create index on attributes, not altering the range of the query. And therefore the accuracy and thoroughness of the analysis is incorrect.```
 
-Please see [revised_Database_Design_stage3](revised_Database_Design_stage3.pdf)
+Please see [revised_Database_Design_stage3](revised_Database_Design_stage3.pdf). The revised changes are highlighted in yellow.
 
-This note summarizes **what we changed** in the indexing work for Stage 3 and **what we decided to keep**. The goal was to try small, targeted indexes on JOIN and WHERE columns, measure with `EXPLAIN ANALYZE`, and retain only the designs that consistently helped.
+The goal was to try small, targeted indexes on JOIN and WHERE columns, measure with `EXPLAIN ANALYZE`, and retain only the designs that consistently helped.
 
 ## Q1: Authorship × Papers × Reviews (per‑user, recent uploads, count reviews)
 **Tried**
