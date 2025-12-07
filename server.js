@@ -19,6 +19,8 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  connectTimeout: 30000, // 30 seconds (increased for Cloud Run)
+  // Note: acquireTimeout and timeout are pool-level, not connection-level
 };
 
 if (process.env.DB_HOST && process.env.DB_HOST.startsWith('/cloudsql/')) {
@@ -28,12 +30,22 @@ if (process.env.DB_HOST && process.env.DB_HOST.startsWith('/cloudsql/')) {
   // Standard TCP connection
   dbConfig.host = process.env.DB_HOST;
   dbConfig.port = Number(process.env.DB_PORT || 3306);
-  // SSL configuration for GCP Cloud SQL (only for remote connections)
-  if (process.env.DB_HOST !== 'localhost' && process.env.DB_HOST !== '127.0.0.1') {
+  
+  // Cloud SQL requires SSL for public IP connections
+  // Try without SSL first if DB_SSL=false, otherwise use SSL
+  if (process.env.DB_SSL === 'false') {
+    console.log(`[DB] Attempting connection to ${dbConfig.host}:${dbConfig.port} WITHOUT SSL`);
+  } else {
     dbConfig.ssl = {
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, // Accept self-signed certificates
+      // Cloud SQL uses Google-managed certificates
     };
+    console.log(`[DB] Attempting connection to ${dbConfig.host}:${dbConfig.port} with SSL: true`);
   }
+  
+  // Enable connection retry and keep-alive
+  dbConfig.enableKeepAlive = true;
+  dbConfig.keepAliveInitialDelay = 0;
 }
 
 const pool = mysql.createPool(dbConfig);
@@ -115,7 +127,7 @@ app.get("/api/papers", async (req, res) => {
 
     // Get paginated results
     let dataQuery = `
-      SELECT
+    SELECT
         p.paper_id,
         p.paper_title,
         p.abstract,
@@ -125,8 +137,8 @@ app.get("/api/papers", async (req, res) => {
         v.venue_name,
         v.year,
         COUNT(r.review_id) AS review_count
-      FROM Papers p
-      LEFT JOIN Venues v ON v.venue_id = p.venue_id
+    FROM Papers p
+    LEFT JOIN Venues v ON v.venue_id = p.venue_id
       LEFT JOIN Reviews r ON r.paper_id = p.paper_id
     `;
     if (whereClause) {
@@ -523,7 +535,7 @@ app.get("/api/reviewable-papers", async (req, res) => {
 app.get("/api/advanced/query1", async (req, res) => {
   const year = String(req.query.year || "2024");
   const user_id = String(req.query.user_id || "");
-
+  
   if (!user_id) {
     return res.status(400).json({ error: "user_id is required" });
   }
@@ -631,7 +643,7 @@ app.get("/api/advanced/query3", async (req, res) => {
  */
 app.get("/api/advanced/query4", async (req, res) => {
   const user_id = String(req.query.user_id || "");
-
+  
   if (!user_id) {
     return res.status(400).json({ error: "user_id is required" });
   }
@@ -670,7 +682,7 @@ app.get("/api/advanced/query4", async (req, res) => {
  */
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body;
-
+  
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required" });
   }
