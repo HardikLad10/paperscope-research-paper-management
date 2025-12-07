@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState, useEffect } from 'react'
 import Login from './pages/Login'
 import Home from './pages/Home'
+import CreatePaperPage from './pages/CreatePaperPage'
+import { MainLayout } from './components/MainLayout'
 import './App.css'
 
 function App() {
@@ -56,7 +58,45 @@ function App() {
           path="/"
           element={
             isAuthenticated ? (
-              <Home onLogout={handleLogout} />
+              <MainLayout onLogout={handleLogout}>
+                <Home defaultTab="search" />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/papers"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <Home defaultTab="all" />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/my-papers"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <Home defaultTab="my-papers" />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/papers/new"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <CreatePaperPage />
+              </MainLayout>
             ) : (
               <Navigate to="/login" replace />
             )
