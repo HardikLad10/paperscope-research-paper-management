@@ -174,6 +174,60 @@ app.get("/api/authors/:user_id/portfolio", async (req, res) => {
 });
 
 /**
+ * Author Insights — backed by stored procedure sp_author_insights
+ * GET /api/authors/:user_id/insights
+ *
+ * Returns a JSON object with:
+ * {
+ *   summary: { ... },
+ *   most_reviewed_paper: { ... },
+ *   yearly_stats: [ ... ],
+ *   status_breakdown: [ ... ]
+ * }
+ */
+app.get("/api/authors/:user_id/insights", async (req, res) => {
+  const { user_id } = req.params;
+
+  if (!user_id) {
+    return res.status(400).json({ error: "user_id is required" });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // CALL the stored procedure that we already created in MySQL
+    const [resultSets] = await conn.query("CALL sp_author_insights(?)", [user_id]);
+
+    // MySQL returns an array of result sets. For this procedure:
+    // resultSets[0] -> summary (1 row)
+    // resultSets[1] -> most reviewed paper (0–1 row)
+    // resultSets[2] -> yearly stats (0+ rows)
+    // resultSets[3] -> status breakdown (0+ rows)
+    const summaryRows = Array.isArray(resultSets[0]) ? resultSets[0] : [];
+    const mostRows = Array.isArray(resultSets[1]) ? resultSets[1] : [];
+    const yearlyRows = Array.isArray(resultSets[2]) ? resultSets[2] : [];
+    const statusRows = Array.isArray(resultSets[3]) ? resultSets[3] : [];
+
+    const summary = summaryRows[0] || null;
+    const mostReviewedPaper = mostRows[0] || null;
+
+    return res.json({
+      author_id: user_id,
+      summary,
+      most_reviewed_paper: mostReviewedPaper,
+      yearly_stats: yearlyRows,
+      status_breakdown: statusRows,
+    });
+  } catch (e) {
+    console.error("Error in /api/authors/:user_id/insights:", e);
+    return res.status(500).json({ error: "Failed to load author insights" });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+/**
  * Q5 — Top reviewers in a window (rank by number of reviews)
  * GET /api/reviewers/top?from=2024-02-15&to=2024-05-15
  */
