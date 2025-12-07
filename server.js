@@ -10,20 +10,35 @@ app.use(cors());
 app.use(express.json());
 
 // ---- MySQL pool (raw SQL) ----
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT || 3306),
+// Handle Cloud SQL Unix socket connection (when DB_HOST starts with /cloudsql/)
+const dbConfig = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  // SSL configuration for GCP Cloud SQL
-  ssl: {
+  connectTimeout: 30000, // 30 seconds (increased for Cloud Run)
+  // Note: acquireTimeout and timeout are pool-level, not connection-level
+};
+
+if (process.env.DB_HOST && process.env.DB_HOST.startsWith('/cloudsql/')) {
+  // Cloud SQL Unix socket connection
+  dbConfig.socketPath = process.env.DB_HOST;
+} else {
+  // Standard TCP connection
+  dbConfig.host = process.env.DB_HOST;
+  dbConfig.port = Number(process.env.DB_PORT || 3306);
+  // Cloud SQL requires SSL for public IP connections
+  dbConfig.ssl = {
     rejectUnauthorized: false, // For GCP Cloud SQL with Google-managed certificates
-  },
-});
+  };
+  // Enable connection retry
+  dbConfig.enableKeepAlive = true;
+  dbConfig.keepAliveInitialDelay = 0;
+}
+
+const pool = mysql.createPool(dbConfig);
 
 // Vertex AI Configuration for GCP
 const VERTEX_AI_CONFIG = {

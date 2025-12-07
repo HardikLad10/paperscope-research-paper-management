@@ -39,19 +39,44 @@ app.use((req, res, next) => {
 });
 
 // MySQL pool (raw SQL)
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT || 3306),
+// Handle Cloud SQL Unix socket connection (when DB_HOST starts with /cloudsql/)
+const dbConfig = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
+  connectTimeout: 30000, // 30 seconds (increased for Cloud Run)
+  // Note: acquireTimeout and timeout are pool-level, not connection-level
+};
+
+if (process.env.DB_HOST && process.env.DB_HOST.startsWith('/cloudsql/')) {
+  // Cloud SQL Unix socket connection
+  dbConfig.socketPath = process.env.DB_HOST;
+} else {
+  // Standard TCP connection
+  dbConfig.host = process.env.DB_HOST;
+  dbConfig.port = Number(process.env.DB_PORT || 3306);
+  
+  // Cloud SQL requires SSL for public IP connections
+  // Try without SSL first if DB_SSL=false, otherwise use SSL
+  if (process.env.DB_SSL === 'false') {
+    console.log(`[DB] Attempting connection to ${dbConfig.host}:${dbConfig.port} WITHOUT SSL`);
+  } else {
+    dbConfig.ssl = {
+      rejectUnauthorized: false, // Accept self-signed certificates
+      // Cloud SQL uses Google-managed certificates
+    };
+    console.log(`[DB] Attempting connection to ${dbConfig.host}:${dbConfig.port} with SSL: true`);
+  }
+  
+  // Enable connection retry and keep-alive
+  dbConfig.enableKeepAlive = true;
+  dbConfig.keepAliveInitialDelay = 0;
+}
+
+const pool = mysql.createPool(dbConfig);
 
 // Vertex AI Configuration for GCP
 const VERTEX_AI_CONFIG = {
@@ -101,25 +126,39 @@ app.get("/api/health", async (_req, res) => {
     return res.json({ ok: r[0]?.ok === 1 });
   } catch (e) {
     const duration = Date.now() - startTime;
-    console.error(`[HEALTH] Database connection failed (${duration}ms):`, {
-      error: String(e),
-      stack: e.stack,
-      DB_HOST: process.env.DB_HOST ? "SET" : "MISSING",
-      DB_USER: process.env.DB_USER ? "SET" : "MISSING",
-      DB_PASSWORD: process.env.DB_PASSWORD ? "SET" : "MISSING",
-      DB_NAME: process.env.DB_NAME ? "SET" : "MISSING",
-      DB_PORT: process.env.DB_PORT || "3306 (default)"
-    });
-    // Debug: Show which env vars are missing
-    const envCheck = {
-      DB_HOST: process.env.DB_HOST ? "SET" : "MISSING",
-      DB_USER: process.env.DB_USER ? "SET" : "MISSING",
-      DB_PASSWORD: process.env.DB_PASSWORD ? "SET" : "MISSING",
-      DB_NAME: process.env.DB_NAME ? "SET" : "MISSING",
-      DB_PORT: process.env.DB_PORT || "3306 (default)",
-      error: String(e)
+    const errorDetails = {
+      message: e.message,
+      code: e.code,
+      errno: e.errno,
+      sqlState: e.sqlState,
+      sqlMessage: e.sqlMessage,
     };
-    return res.status(500).json({ ok: false, ...envCheck });
+    console.error(`[HEALTH] Database connection failed (${duration}ms):`, {
+      ...errorDetails,
+      DB_HOST: process.env.DB_HOST ? "SET" : "MISSING",
+      DB_USER: process.env.DB_USER ? "SET" : "MISSING",
+      DB_PASSWORD: process.env.DB_PASSWORD ? "SET" : "MISSING",
+      DB_NAME: process.env.DB_NAME ? "SET" : "MISSING",
+      DB_PORT: process.env.DB_PORT || "3306",
+      stack: e.stack,
+    });
+    return res.status(500).json({
+      ok: false,
+      status: "disconnected",
+      DB_HOST: process.env.DB_HOST ? "SET" : "MISSING",
+      DB_USER: process.env.DB_USER ? "SET" : "MISSING",
+      DB_PASSWORD: process.env.DB_PASSWORD ? "SET" : "MISSING",
+      DB_NAME: process.env.DB_NAME ? "SET" : "MISSING",
+      DB_PORT: process.env.DB_PORT || "3306",
+      error: String(e),
+      errorCode: e.code,
+      errorMessage: e.message,
+      troubleshooting: {
+        ETIMEDOUT: "Connection timeout - Check firewall, IP whitelist, and Public IP enabled",
+        ECONNREFUSED: "Connection refused - Check IP address and port",
+        ENOTFOUND: "Host not found - Check DB_HOST value",
+      }[e.code] || "See error message above",
+    });
   }
 });
 
@@ -725,6 +764,7 @@ Return ONLY the JSON array, no other text.`;
     console.log(`[RECOMMENDATIONS] Using Generative AI API with model: ${modelName}`);
     
     // Get API key from service account for Generative AI API
+    // In Cloud Run, uses default service account or GOOGLE_APPLICATION_CREDENTIALS
     let apiKey;
     try {
       const { GoogleAuth } = await import('google-auth-library');
@@ -732,8 +772,26 @@ Return ONLY the JSON array, no other text.`;
         scopes: ['https://www.googleapis.com/auth/generative-language'],
       };
       
+      // Handle service account key file (local dev) or use default credentials (Cloud Run)
       if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-        authOptions.keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        const fs = await import('fs');
+        const path = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        // Check if it's a file path that exists
+        if (fs.existsSync(path)) {
+          authOptions.keyFile = path;
+        } else {
+          // Try reading as secret mount path
+          try {
+            const keyData = fs.readFileSync(path, 'utf8');
+            authOptions.credentials = JSON.parse(keyData);
+          } catch {
+            // Fall back to default credentials (Cloud Run will use its service account)
+            console.log('[RECOMMENDATIONS] Using default GCP credentials (Cloud Run service account)');
+          }
+        }
+      } else {
+        // No credentials specified - use default (Cloud Run service account)
+        console.log('[RECOMMENDATIONS] Using default GCP credentials');
       }
       
       const auth = new GoogleAuth(authOptions);
@@ -857,4 +915,12 @@ Return ONLY the JSON array, no other text.`;
 
 // Export for Vercel
 export default app;
+
+// Start server for Cloud Run or local development
+if (process.env.VERCEL !== '1') {
+  const port = Number(process.env.PORT || 4000);
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`PaperScope API running at http://0.0.0.0:${port}`);
+  });
+}
 
