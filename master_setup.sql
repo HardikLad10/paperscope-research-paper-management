@@ -304,4 +304,5 @@ ORDER BY p.upload_timestamp DESC;
 
 SOURCE database/constraints.sql;
 SOURCE database/procedures.sql;
+SOURCE database/procedures/sp_delete_paper_safe.sql;
 SOURCE database/triggers.sql;
