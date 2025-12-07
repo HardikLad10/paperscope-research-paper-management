@@ -4,12 +4,35 @@ import './Home.css'
 
 function Home({ defaultTab = 'search' }) {
   const [activeTab, setActiveTab] = useState(defaultTab)
-  const [searchTerm, setSearchTerm] = useState('')
   const [papers, setPapers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [venues, setVenues] = useState([])
+  
+  // Filter states for search
+  const [filters, setFilters] = useState({
+    q: '',
+    venue_id: '',
+    status: ''
+  })
+
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 0
+  })
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
+
+  // Load venues for filter dropdown
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/venues`)
+      .then(res => res.json())
+      .then(data => setVenues(data))
+      .catch(() => setVenues([]))
+  }, [])
 
   // Update active tab when defaultTab changes
   useEffect(() => {
@@ -22,6 +45,9 @@ function Home({ defaultTab = 'search' }) {
       loadAllPapers()
     } else if (activeTab === 'my-papers') {
       loadMyPapers()
+    } else if (activeTab === 'search') {
+      // Load all papers by default when search tab is active
+      loadSearchPapers(1)
     }
   }, [activeTab])
 
@@ -29,15 +55,75 @@ function Home({ defaultTab = 'search' }) {
     setLoading(true)
     setError('')
     try {
-      const response = await fetch(`${API_BASE_URL}/api/papers`)
+      const response = await fetch(`${API_BASE_URL}/api/papers?page=1&limit=50`)
       if (!response.ok) throw new Error('Failed to load papers')
       const data = await response.json()
-      setPapers(data)
+      setPapers(data.papers || data)
+      if (data.pagination) {
+        setPagination(data.pagination)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadSearchPapers = async (page = 1) => {
+    setLoading(true)
+    setError('')
+    try {
+      const params = new URLSearchParams()
+      if (filters.q && filters.q.trim()) params.append('q', filters.q.trim())
+      if (filters.venue_id && filters.venue_id.trim()) params.append('venue_id', filters.venue_id.trim())
+      if (filters.status && filters.status.trim()) params.append('status', filters.status.trim())
+      params.append('page', page.toString())
+      params.append('limit', '50')
+
+      const url = `${API_BASE_URL}/api/papers?${params.toString()}`
+      const response = await fetch(url)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Search failed' }))
+        throw new Error(errorData.error || 'Search failed')
+      }
+      const data = await response.json()
+      setPapers(data.papers || data)
+      if (data.pagination) {
+        setPagination(data.pagination)
+      } else {
+        // Fallback for old response format
+        setPagination({
+          page: 1,
+          limit: 50,
+          total: (data.papers || data).length,
+          totalPages: 1
+        })
+      }
+    } catch (err) {
+      console.error('Error loading papers:', err)
+      setError(err.message || 'Failed to load papers')
+      setPapers([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const searchPapers = async () => {
+    // Reset to page 1 when applying filters
+    loadSearchPapers(1)
+  }
+
+  const handleFilterChange = (field, value) => {
+    setFilters(prev => ({ ...prev, [field]: value }))
+  }
+
+  const resetFilters = () => {
+    setFilters({ q: '', venue_id: '', status: '' })
+    setTimeout(() => loadSearchPapers(1), 100)
+  }
+
+  const handlePageChange = (newPage) => {
+    loadSearchPapers(newPage)
   }
 
   const loadMyPapers = async () => {
@@ -55,26 +141,6 @@ function Home({ defaultTab = 'search' }) {
     }
   }
 
-  const searchPapers = async () => {
-    if (!searchTerm.trim()) {
-      setError('Please enter a search term')
-      return
-    }
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/papers?search=${encodeURIComponent(searchTerm)}`
-      )
-      if (!response.ok) throw new Error('Search failed')
-      const data = await response.json()
-      setPapers(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
 
   return (
@@ -83,22 +149,73 @@ function Home({ defaultTab = 'search' }) {
 
           {activeTab === 'search' && (
             <div className="search-section">
-              <div className="search-box">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search papers by title or abstract..."
-                  onKeyPress={(e) => e.key === 'Enter' && searchPapers()}
-                />
-                <button onClick={searchPapers} className="search-button">
-                  Search
-                </button>
+              <div className="filter-bar">
+                <div className="filter-group filter-search">
+                  <label htmlFor="search-input">Search</label>
+                  <input
+                    id="search-input"
+                    type="text"
+                    value={filters.q}
+                    onChange={(e) => handleFilterChange('q', e.target.value)}
+                    placeholder="Search by paper title or abstract..."
+                    onKeyPress={(e) => e.key === 'Enter' && searchPapers()}
+                  />
+                </div>
+
+                <div className="filter-group">
+                  <label htmlFor="venue-filter">Venue</label>
+                  <select
+                    id="venue-filter"
+                    value={filters.venue_id}
+                    onChange={(e) => handleFilterChange('venue_id', e.target.value)}
+                  >
+                    <option value="">All venues</option>
+                    {venues.map(v => (
+                      <option key={v.venue_id} value={v.venue_id}>
+                        {v.venue_name} {v.year ? `(${v.year})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="filter-group">
+                  <label htmlFor="status-filter">Status</label>
+                  <select
+                    id="status-filter"
+                    value={filters.status}
+                    onChange={(e) => handleFilterChange('status', e.target.value)}
+                  >
+                    <option value="">All statuses</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Published">Published</option>
+                  </select>
+                </div>
+
+                <div className="filter-actions">
+                  <button onClick={searchPapers} className="btn-apply">
+                    Search / Apply Filters
+                  </button>
+                  <button onClick={resetFilters} className="btn-reset">
+                    Reset
+                  </button>
+                </div>
               </div>
               {loading ? (
                 <div className="loading">Loading...</div>
               ) : (
-                <PapersList papers={papers} />
+                <>
+                  <PapersList papers={papers} />
+                  {pagination.totalPages > 1 && (
+                    <PaginationControls
+                      currentPage={pagination.page}
+                      totalPages={pagination.totalPages}
+                      total={pagination.total}
+                      limit={pagination.limit}
+                      onPageChange={handlePageChange}
+                    />
+                  )}
+                </>
               )}
             </div>
           )}
@@ -151,6 +268,11 @@ function PapersList({ papers }) {
             <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
               {paper.status || 'Unknown'}
             </span>
+            {paper.review_count !== undefined && (
+              <span className="badge badge-reviews">
+                {paper.review_count} {paper.review_count === 1 ? 'review' : 'reviews'}
+              </span>
+            )}
           </div>
           <p className="paper-abstract">
             {paper.abstract ? (paper.abstract.length > 150 ? paper.abstract.substring(0, 150) + '...' : paper.abstract) : 'No abstract available'}
@@ -189,6 +311,84 @@ function QueryResults({ data }) {
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+function PaginationControls({ currentPage, totalPages, total, limit, onPageChange }) {
+  const startItem = (currentPage - 1) * limit + 1
+  const endItem = Math.min(currentPage * limit, total)
+
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisible = 5
+    
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 5; i++) {
+          pages.push(i)
+        }
+      } else if (currentPage >= totalPages - 2) {
+        for (let i = totalPages - 4; i <= totalPages; i++) {
+          pages.push(i)
+        }
+      } else {
+        for (let i = currentPage - 2; i <= currentPage + 2; i++) {
+          pages.push(i)
+        }
+      }
+    }
+    return pages
+  }
+
+  return (
+    <div className="pagination-controls">
+      <div className="pagination-info">
+        Showing {startItem}-{endItem} of {total} papers
+      </div>
+      <div className="pagination-buttons">
+        <button
+          className="pagination-btn"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+        >
+          First
+        </button>
+        <button
+          className="pagination-btn"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+        >
+          Previous
+        </button>
+        {getPageNumbers().map((page) => (
+          <button
+            key={page}
+            className={`pagination-btn ${currentPage === page ? 'active' : ''}`}
+            onClick={() => onPageChange(page)}
+          >
+            {page}
+          </button>
+        ))}
+        <button
+          className="pagination-btn"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+        >
+          Next
+        </button>
+        <button
+          className="pagination-btn"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+        >
+          Last
+        </button>
+      </div>
     </div>
   )
 }

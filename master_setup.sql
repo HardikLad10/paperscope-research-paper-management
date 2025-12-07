@@ -77,7 +77,7 @@ CREATE TABLE Authorship (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE Reviews (
-    review_id          VARCHAR(10) PRIMARY KEY,
+    review_id          VARCHAR(50) PRIMARY KEY,
     user_id            VARCHAR(10) NOT NULL,
     paper_id           VARCHAR(50) NOT NULL,
     comment            TEXT NOT NULL,
@@ -297,3 +297,11 @@ WHERE p.status = 'Under Review'
     )
 GROUP BY p.paper_id, p.paper_title, p.abstract, p.pdf_url, p.upload_timestamp, p.status, v.venue_name, v.year
 ORDER BY p.upload_timestamp DESC;
+
+-- ============================================================
+-- PART 6: APPLY CONSTRAINTS, PROCEDURES, AND TRIGGERS
+-- ============================================================
+
+SOURCE database/constraints.sql;
+SOURCE database/procedures.sql;
+SOURCE database/triggers.sql;

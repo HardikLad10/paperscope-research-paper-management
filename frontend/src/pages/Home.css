@@ -33,6 +33,86 @@
   border-color: #667eea;
 }
 
+/* Filter Bar (for Search Papers) */
+.filter-bar {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  margin-bottom: 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  align-items: end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-search {
+  grid-column: span 2;
+}
+
+.filter-group label {
+  color: #2d3748;
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 10px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.3s;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.btn-apply,
+.btn-reset {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 14px;
+}
+
+.btn-apply {
+  background: #667eea;
+  color: white;
+}
+
+.btn-apply:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+}
+
+.btn-reset {
+  background: #e2e8f0;
+  color: #2d3748;
+}
+
+.btn-reset:hover {
+  background: #cbd5e0;
+}
+
 .search-button,
 .refresh-button,
 .query-button {
@@ -123,6 +203,11 @@
   color: #22543d;
 }
 
+.badge-reviews {
+  background: #bee3f8;
+  color: #2c5282;
+}
+
 .paper-abstract {
   color: #4a5568;
   line-height: 1.6;
@@ -205,5 +290,57 @@
 
 .results-table tr:hover {
   background: #f7fafc;
+}
+
+/* Pagination Controls */
+.pagination-controls {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.pagination-info {
+  color: #718096;
+  font-size: 0.9em;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pagination-btn {
+  padding: 8px 16px;
+  border: 2px solid #e2e8f0;
+  background: white;
+  color: #2d3748;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s;
+  min-width: 44px;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+  transform: translateY(-2px);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+  font-weight: 600;
 }
 
