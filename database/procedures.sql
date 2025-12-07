@@ -36,7 +36,6 @@ BEGIN
     JOIN Reviews r ON r.paper_id = a.paper_id
     WHERE a.user_id = p_user_id;
 
-    -------------------------------------------------------------------
     -- 3) Compute average reviews per paper (control structure)
     IF v_total_papers > 0 THEN
         SET v_avg_reviews = v_total_reviews / v_total_papers;
@@ -114,6 +113,78 @@ BEGIN
     JOIN Papers p ON p.paper_id = a.paper_id
     WHERE a.user_id = p_user_id
     GROUP BY p.status;
+END$$
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS sp_author_portfolio_with_coauthors $$
+
+CREATE PROCEDURE sp_author_portfolio_with_coauthors (
+    IN p_author_id VARCHAR(50)
+)
+BEGIN
+    /*
+      Returns one row per paper authored by p_author_id, with:
+        - paper_id, paper_title, upload_timestamp
+        - project_title (if any)
+        - review_count (total reviews for that paper)
+        - coauthor_count (number of co-authors excluding this author)
+        - coauthors (comma-separated list of co-author names)
+    */
+    SELECT
+        p.paper_id,
+        p.paper_title,
+        p.pdf_url,
+        p.upload_timestamp,
+        proj.project_id,
+        proj.project_title,
+        -- total reviews per paper (pre-aggregated in a subquery)
+        COALESCE(r.review_count, 0) AS review_count,
+        -- number of co-authors (excluding the logged-in author)
+        COUNT(DISTINCT co_auth.user_id) AS coauthor_count,
+        -- human-readable co-author list
+        COALESCE(
+            GROUP_CONCAT(
+                DISTINCT co_user.user_name
+                ORDER BY co_user.user_name
+                SEPARATOR ', '
+            ),
+            'No co-authors'
+        ) AS coauthors
+    FROM Authorship AS a_self
+    JOIN Papers AS p
+        ON p.paper_id = a_self.paper_id
+    -- optional project info
+    LEFT JOIN Projects AS proj
+        ON proj.project_id = p.project_id
+    -- pre-aggregated review counts (advanced subquery)
+    LEFT JOIN (
+        SELECT
+            paper_id,
+            COUNT(*) AS review_count
+        FROM Reviews
+        GROUP BY paper_id
+    ) AS r
+        ON r.paper_id = p.paper_id
+    -- co-author links (same paper, different user)
+    LEFT JOIN Authorship AS co_auth
+        ON co_auth.paper_id = p.paper_id
+       AND co_auth.user_id <> a_self.user_id
+    -- co-author names
+    LEFT JOIN Users AS co_user
+        ON co_user.user_id = co_auth.user_id
+    WHERE a_self.user_id = p_author_id
+    GROUP BY
+        p.paper_id,
+        p.paper_title,
+        p.pdf_url,
+        p.upload_timestamp,
+        proj.project_id,
+        proj.project_title,
+        r.review_count
+    ORDER BY
+        p.upload_timestamp DESC,
+        p.paper_title;
 END$$
 
 DELIMITER ;

@@ -206,33 +206,46 @@ app.get("/api/venues/recent", async (req, res) => {
 });
 
 /**
- * Q4 — Author portfolio: papers for a user since a date, with review counts
+ * Q4 — Author portfolio: papers for a user with co-author information
  * GET /api/authors/:user_id/portfolio?since=2018-01-01
+ * 
+ * Uses stored procedure sp_author_portfolio_with_coauthors which returns:
+ * - paper_id, paper_title, upload_timestamp
+ * - project_title
+ * - review_count
+ * - coauthor_count
+ * - coauthors (comma-separated list)
  */
 app.get("/api/authors/:user_id/portfolio", async (req, res) => {
   const { user_id } = req.params;
   const since = String(req.query.since || "2018-01-01");
+  
+  let conn;
   try {
-    const [rows] = await pool.execute(
-      `
-      SELECT
-        pr.project_id, pr.project_title,
-        p.paper_id, p.paper_title, p.pdf_url, p.upload_timestamp,
-        COUNT(r.review_id) AS review_count
-      FROM Authorship a
-      JOIN Papers p   ON p.paper_id = a.paper_id
-      LEFT JOIN Projects pr ON pr.project_id = p.project_id
-      LEFT JOIN Reviews r ON r.paper_id = p.paper_id
-      WHERE a.user_id = ? AND (p.upload_timestamp IS NULL OR p.upload_timestamp >= ?)
-      GROUP BY pr.project_id, pr.project_title, p.paper_id, p.paper_title, p.pdf_url, p.upload_timestamp
-      ORDER BY p.upload_timestamp DESC, review_count DESC
-      LIMIT 50
-      `,
-      [user_id, since]
+    conn = await pool.getConnection();
+    
+    // Call stored procedure
+    const [resultSets] = await conn.query(
+      'CALL sp_author_portfolio_with_coauthors(?)',
+      [user_id]
     );
-    return res.json(rows);
+    
+    // MySQL returns an array of result sets
+    const portfolio = Array.isArray(resultSets[0]) ? resultSets[0] : [];
+    
+    // Filter by since date if provided (client-side filter for now)
+    // Note: The procedure doesn't filter by date, so we filter in JS
+    const filtered = portfolio.filter(paper => {
+      if (!paper.upload_timestamp) return true;
+      return new Date(paper.upload_timestamp) >= new Date(since);
+    });
+    
+    return res.json(filtered);
   } catch (e) {
+    console.error("Error in /api/authors/:user_id/portfolio:", e);
     return res.status(500).json({ error: String(e) });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -790,6 +803,44 @@ app.post("/api/papers/with-authors", async (req, res) => {
     return res.status(400).json({
       error: err.message || "Failed to create paper",
     });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+/**
+ * Delete a paper safely (transaction via stored procedure)
+ * DELETE /api/papers/:paper_id?user_id=U001
+ * 
+ * Uses stored procedure sp_delete_paper_safe which:
+ * - Verifies user is an author
+ * - Deletes Reviews, RelatedPapers, Authorship, then Paper in a transaction
+ */
+app.delete("/api/papers/:paper_id", async (req, res) => {
+  const { paper_id } = req.params;
+  const user_id = String(req.query.user_id || "").trim();
+
+  if (!paper_id || !user_id) {
+    return res.status(400).json({ error: "paper_id and user_id are required" });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    
+    // Call stored procedure
+    await conn.query("CALL sp_delete_paper_safe(?, ?)", [paper_id, user_id]);
+    
+    return res.json({ ok: true, paper_id });
+  } catch (e) {
+    console.error("Error in DELETE /api/papers/:paper_id:", e);
+    
+    // Surface the procedure error message if available
+    if (e.code === "ER_SIGNAL_EXCEPTION" || e.message) {
+      return res.status(400).json({ error: e.message || String(e) });
+    }
+    
+    return res.status(400).json({ error: "Failed to delete paper" });
   } finally {
     if (conn) conn.release();
   }

@@ -7,6 +7,7 @@ function Home({ defaultTab = 'search' }) {
   const [papers, setPapers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
   const [venues, setVenues] = useState([])
   
   // Filter states for search
@@ -126,6 +127,50 @@ function Home({ defaultTab = 'search' }) {
     loadSearchPapers(newPage)
   }
 
+  const handleDeletePaper = async (paperId) => {
+    const raw = localStorage.getItem('user')
+    const currentUser = raw ? JSON.parse(raw) : null
+    const userId = currentUser?.user_id
+
+    if (!userId) {
+      alert('You must be logged in to delete a paper.')
+      return
+    }
+
+    const ok = window.confirm('Are you sure you want to delete this paper? This cannot be undone.')
+    if (!ok) return
+
+    // Find paper title for success message
+    const paperToDelete = papers.find(p => p.paper_id === paperId)
+    const paperTitle = paperToDelete?.paper_title || 'Paper'
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/papers/${paperId}?user_id=${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to delete paper')
+      }
+
+      // Remove from local state
+      setPapers((prev) => prev.filter((p) => p.paper_id !== paperId))
+      setError('')
+      setSuccessMessage(`Paper "${paperTitle}" has been successfully deleted.`)
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('')
+      }, 5000)
+    } catch (err) {
+      console.error(err)
+      setError('Failed to delete paper: ' + (err.message || 'Unknown error'))
+      setSuccessMessage('')
+    }
+  }
+
   const loadMyPapers = async () => {
     if (!user?.user_id) {
       setError('Please log in to view your papers')
@@ -158,6 +203,7 @@ function Home({ defaultTab = 'search' }) {
   return (
     <div className="content-panel">
           {error && <div className="error-message">{error}</div>}
+          {successMessage && <div className="success-message">{successMessage}</div>}
 
           {activeTab === 'search' && (
             <div className="search-section">
@@ -253,7 +299,7 @@ function Home({ defaultTab = 'search' }) {
               {loading ? (
                 <div className="loading">Loading...</div>
               ) : (
-                <MyPapersList papers={papers} />
+                <MyPapersList papers={papers} onDeletePaper={handleDeletePaper} />
               )}
             </div>
           )}
@@ -312,7 +358,7 @@ function PapersList({ papers }) {
   )
 }
 
-function MyPapersList({ papers }) {
+function MyPapersList({ papers, onDeletePaper }) {
   if (papers.length === 0) {
     return <div className="empty-state">No papers found. You haven't authored any papers yet.</div>
   }
@@ -340,25 +386,45 @@ function MyPapersList({ papers }) {
                     : `${paper.review_count} reviews`}
               </span>
             )}
+            {paper.coauthor_count !== undefined && (
+              <span className="badge badge-coauthors">
+                {paper.coauthor_count === 0 
+                  ? 'Solo author' 
+                  : paper.coauthor_count === 1 
+                    ? '1 co-author' 
+                    : `${paper.coauthor_count} co-authors`}
+              </span>
+            )}
           </div>
+          {paper.coauthors && (
+            <div className="paper-coauthors">
+              <strong>Co-authors:</strong> {paper.coauthors}
+            </div>
+          )}
           <div className="paper-footer">
             <div className="paper-date">
               <strong>Uploaded:</strong> {paper.upload_timestamp 
                 ? new Date(paper.upload_timestamp).toLocaleDateString() 
                 : 'Unknown date'}
             </div>
-            {paper.pdf_url ? (
-              <a
-                href={paper.pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="view-pdf-button"
+            <div className="paper-actions">
+              {paper.pdf_url && (
+                <a
+                  href={paper.pdf_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="view-pdf-button"
+                >
+                  View PDF
+                </a>
+              )}
+              <button
+                className="delete-paper-button"
+                onClick={() => onDeletePaper(paper.paper_id)}
               >
-                View PDF
-              </a>
-            ) : (
-              <span className="pdf-unavailable">PDF not available</span>
-            )}
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       ))}
