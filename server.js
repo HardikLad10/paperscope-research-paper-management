@@ -221,7 +221,7 @@ app.get("/api/authors/:user_id/portfolio", async (req, res) => {
         COUNT(r.review_id) AS review_count
       FROM Authorship a
       JOIN Papers p   ON p.paper_id = a.paper_id
-      JOIN Projects pr ON pr.project_id = p.project_id
+      LEFT JOIN Projects pr ON pr.project_id = p.project_id
       LEFT JOIN Reviews r ON r.paper_id = p.paper_id
       WHERE a.user_id = ? AND (p.upload_timestamp IS NULL OR p.upload_timestamp >= ?)
       GROUP BY pr.project_id, pr.project_title, p.paper_id, p.paper_title, p.upload_timestamp

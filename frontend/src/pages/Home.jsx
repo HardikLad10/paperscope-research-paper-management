@@ -127,15 +127,27 @@ function Home({ defaultTab = 'search' }) {
   }
 
   const loadMyPapers = async () => {
+    if (!user?.user_id) {
+      setError('Please log in to view your papers')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
-      const response = await fetch(`${API_BASE_URL}/api/authors/${user.user_id}/portfolio`)
-      if (!response.ok) throw new Error('Failed to load your papers')
+      const params = new URLSearchParams({
+        since: '2018-01-01'
+      })
+      const response = await fetch(`${API_BASE_URL}/api/authors/${encodeURIComponent(user.user_id)}/portfolio?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`Failed to load your papers: ${response.status}`)
+      }
       const data = await response.json()
-      setPapers(data)
+      setPapers(Array.isArray(data) ? data : [])
     } catch (err) {
-      setError(err.message)
+      console.error('Error loading my papers:', err)
+      setError(err.message || 'Failed to load your papers. Please try again later.')
+      setPapers([])
     } finally {
       setLoading(false)
     }
@@ -241,7 +253,7 @@ function Home({ defaultTab = 'search' }) {
               {loading ? (
                 <div className="loading">Loading...</div>
               ) : (
-                <PapersList papers={papers} />
+                <MyPapersList papers={papers} />
               )}
             </div>
           )}
@@ -279,6 +291,46 @@ function PapersList({ papers }) {
           </p>
           <div className="paper-date">
             {new Date(paper.upload_timestamp).toLocaleDateString()}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MyPapersList({ papers }) {
+  if (papers.length === 0) {
+    return <div className="empty-state">No papers found. You haven't authored any papers yet.</div>
+  }
+
+  return (
+    <div className="papers-grid">
+      {papers.map((paper) => (
+        <div key={paper.paper_id} className="paper-card">
+          <h3 className="paper-title">{paper.paper_title}</h3>
+          <div className="paper-meta">
+            {paper.project_title && (
+              <span className="badge badge-project">
+                Project: {paper.project_title}
+              </span>
+            )}
+            <span className="badge badge-status">
+              Authored Paper
+            </span>
+            {paper.review_count !== undefined && (
+              <span className="badge badge-reviews">
+                {paper.review_count === 0 
+                  ? '0 reviews' 
+                  : paper.review_count === 1 
+                    ? '1 review' 
+                    : `${paper.review_count} reviews`}
+              </span>
+            )}
+          </div>
+          <div className="paper-date">
+            <strong>Uploaded:</strong> {paper.upload_timestamp 
+              ? new Date(paper.upload_timestamp).toLocaleDateString() 
+              : 'Unknown date'}
           </div>
         </div>
       ))}
