@@ -170,18 +170,39 @@
   gap: 20px;
 }
 
-.paper-card {
-  background: #f7fafc;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #e2e8f0;
-  transition: all 0.3s;
+.paper-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  cursor: pointer;
 }
 
-.paper-card:hover {
-  transform: translateY(-5px);
+.paper-card-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #f7fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.paper-card {
+  background: transparent;
+  padding: 20px;
+  transition: all 0.3s;
+  cursor: pointer;
+  flex: 1;
+}
+
+.paper-card-wrapper:hover .paper-card {
+  transform: translateY(-2px);
+}
+
+.paper-card-wrapper:hover {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
+
 
 .paper-title {
   font-size: 1.2em;
@@ -275,6 +296,7 @@
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .view-pdf-button {

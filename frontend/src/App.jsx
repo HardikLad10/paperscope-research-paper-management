@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import CreatePaperPage from './pages/CreatePaperPage'
 import AuthorInsightsPage from './pages/AuthorInsightsPage'
 import ReviewPapersPage from './pages/ReviewPapersPage'
+import PaperDetail from './pages/PaperDetail'
 import { MainLayout } from './components/MainLayout'
 import './App.css'
 
@@ -110,6 +111,18 @@ function App() {
             isAuthenticated ? (
               <MainLayout onLogout={handleLogout}>
                 <ReviewPapersPage />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/papers/:paper_id"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <PaperDetail />
               </MainLayout>
             ) : (
               <Navigate to="/login" replace />

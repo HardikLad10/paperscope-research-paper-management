@@ -916,38 +916,34 @@ app.get("/api/papers/:paper_id/recommendations", async (req, res) => {
     const currentPaper = currentPaperRows[0];
     const currentPaperText = `Title: ${currentPaper.paper_title}\nAbstract: ${currentPaper.abstract || 'No abstract available'}`;
 
-    // Get all other papers from database (excluding current paper)
-    const [allPapers] = await pool.execute(
-      `SELECT paper_id, paper_title, abstract FROM Papers WHERE paper_id != ? ORDER BY upload_timestamp DESC LIMIT 100`,
-      [paper_id]
-    );
+    // Create prompt for Gemini to generate fictional paper recommendations
+    const prompt = `You are a research paper recommendation system. Based on the following paper, recommend 5-10 related research papers.
 
-    if (allPapers.length === 0) {
-      return res.json([]);
-    }
-
-    // Prepare context for LLM
-    const papersContext = allPapers.map((p, idx) => 
-      `${idx + 1}. Paper ID: ${p.paper_id}\n   Title: ${p.paper_title}\n   Abstract: ${p.abstract || 'No abstract available'}`
-    ).join('\n\n');
-
-    // Create prompt for Gemini
-    const prompt = `You are a research paper recommendation system. Given a paper and a list of other papers, identify the 10 most similar papers based on:
-1. Research topic and subject matter
-2. Methodology and approach
-3. Abstract content and keywords
-4. Overall thematic similarity
+IMPORTANT: Create NEW, FICTIONAL paper titles and summaries. Do NOT reference or reuse any paper titles from any database. These should be original, creative recommendations that would be interesting to researchers reading this paper.
 
 Current Paper:
 ${currentPaperText}
 
-Available Papers:
-${papersContext}
+Please return a JSON array of recommended papers. Each recommendation should have:
+- title: A fictional but realistic research paper title
+- summary: A brief 2-3 sentence summary of what the paper would be about
+- reason: A short explanation of why this paper is relevant to the current paper
 
-Please analyze the similarity and return ONLY a JSON array of exactly 10 paper IDs (in order of similarity, most similar first). Format your response as a valid JSON array like this:
-["P001", "P002", "P003", "P004", "P005", "P006", "P007", "P008", "P009", "P010"]
+Format your response as a valid JSON array like this:
+[
+  {
+    "title": "Example Paper Title 1",
+    "summary": "This paper would explore...",
+    "reason": "Relevant because..."
+  },
+  {
+    "title": "Example Paper Title 2",
+    "summary": "This paper would investigate...",
+    "reason": "Related to the current work on..."
+  }
+]
 
-Return ONLY the JSON array, no other text.`;
+Return ONLY the JSON array, no other text. Generate 5-10 recommendations.`;
 
     // Use Generative AI API directly (simpler, works with API key or service account)
     // This uses the generativelanguage.googleapis.com endpoint
@@ -994,9 +990,9 @@ Return ONLY the JSON array, no other text.`;
           }]
         }],
         generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 1024,
-          topP: 0.8,
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+          topP: 0.9,
           topK: 40,
         }
       })
@@ -1016,64 +1012,91 @@ Return ONLY the JSON array, no other text.`;
                  '';
     const trimmedText = String(text).trim();
     console.log(`[RECOMMENDATIONS] LLM response length: ${trimmedText.length} chars`);
+    console.log(`[RECOMMENDATIONS] LLM response (first 1000 chars):`, trimmedText.substring(0, 1000));
 
-    // Parse the JSON response
-    let recommendedPaperIds;
+    // Parse the JSON response - expect array of recommendation objects
+    let recommendations;
     try {
-      // Extract JSON from response (in case there's extra text)
-      const jsonMatch = trimmedText.match(/\[.*?\]/s);
-      if (jsonMatch) {
-        recommendedPaperIds = JSON.parse(jsonMatch[0]);
-      } else {
-        recommendedPaperIds = JSON.parse(trimmedText);
+      // Remove markdown code blocks if present (```json ... ```)
+      let jsonText = trimmedText;
+      if (jsonText.includes('```json')) {
+        // Remove ```json at start and ``` at end
+        jsonText = jsonText.replace(/^```json\s*/i, '').replace(/\s*```\s*$/g, '').trim();
+      } else if (jsonText.includes('```')) {
+        // Remove any code block markers
+        jsonText = jsonText.replace(/^```\s*/g, '').replace(/\s*```\s*$/g, '').trim();
       }
+      
+      // Extract JSON array from the response (handle truncated responses)
+      // Try to find a complete JSON array
+      const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[0];
+        console.log(`[RECOMMENDATIONS] Found JSON array, length: ${jsonStr.length}`);
+        try {
+          recommendations = JSON.parse(jsonStr);
+        } catch (parseErr) {
+          // If parsing fails, try to fix truncated JSON
+          console.log(`[RECOMMENDATIONS] JSON parse failed, attempting to fix truncated response`);
+          // Try to find and extract complete objects
+          const objectMatches = jsonStr.match(/\{[^}]*"title"[^}]*\}/g);
+          if (objectMatches && objectMatches.length > 0) {
+            // Try to parse each complete object
+            recommendations = [];
+            for (const objStr of objectMatches) {
+              try {
+                const obj = JSON.parse(objStr);
+                if (obj.title) recommendations.push(obj);
+              } catch (e) {
+                // Skip incomplete objects
+              }
+            }
+            console.log(`[RECOMMENDATIONS] Extracted ${recommendations.length} complete objects from truncated response`);
+          } else {
+            throw parseErr;
+          }
+        }
+      } else {
+        console.log(`[RECOMMENDATIONS] No JSON array found, trying to parse entire response`);
+        recommendations = JSON.parse(jsonText);
+      }
+      
+      console.log(`[RECOMMENDATIONS] Parsed recommendations count: ${Array.isArray(recommendations) ? recommendations.length : 'not an array'}`);
+      
+      // Ensure it's an array
+      if (!Array.isArray(recommendations)) {
+        console.error(`[RECOMMENDATIONS] Response is not an array:`, typeof recommendations);
+        throw new Error('Response is not an array');
+      }
+      
+      // Validate structure
+      const beforeFilter = recommendations.length;
+      recommendations = recommendations.filter(rec => 
+        rec && typeof rec === 'object' && rec.title
+      );
+      console.log(`[RECOMMENDATIONS] After filtering: ${recommendations.length} valid recommendations (from ${beforeFilter} total)`);
+      
+      // Log first recommendation for debugging
+      if (recommendations.length > 0) {
+        console.log(`[RECOMMENDATIONS] First recommendation:`, JSON.stringify(recommendations[0], null, 2));
+      }
+      
     } catch (parseError) {
       console.error(`[RECOMMENDATIONS] Failed to parse LLM response:`, parseError.message);
-      console.error(`[RECOMMENDATIONS] Response text (first 200 chars):`, trimmedText.substring(0, 200));
-      // Fallback: return first 10 papers sorted by similarity heuristics
-      // Try to extract paper IDs from the text even if not valid JSON
-      const paperIdMatches = trimmedText.match(/P\d{3}/g);
-      if (paperIdMatches && paperIdMatches.length > 0) {
-        recommendedPaperIds = [...new Set(paperIdMatches)].slice(0, 10);
-      } else {
-        // Last resort: return first 10 papers
-        recommendedPaperIds = allPapers.slice(0, 10).map(p => p.paper_id);
-      }
+      console.error(`[RECOMMENDATIONS] Parse error stack:`, parseError.stack);
+      console.error(`[RECOMMENDATIONS] Full response text:`, trimmedText);
+      // Return empty array on parse error
+      recommendations = [];
     }
 
-    // Limit to 10 and ensure they're valid paper IDs
-    recommendedPaperIds = recommendedPaperIds.slice(0, 10).filter(id => 
-      allPapers.some(p => p.paper_id === id)
-    );
-
-    // If we got fewer than 10, fill with remaining papers
-    if (recommendedPaperIds.length < 10) {
-      const remaining = allPapers
-        .filter(p => !recommendedPaperIds.includes(p.paper_id))
-        .slice(0, 10 - recommendedPaperIds.length)
-        .map(p => p.paper_id);
-      recommendedPaperIds = [...recommendedPaperIds, ...remaining];
-    }
-
-    // Fetch full paper details for recommended papers
-    const placeholders = recommendedPaperIds.map(() => '?').join(',');
-    const [recommendedPapers] = await pool.execute(
-      `SELECT 
-        p.paper_id, 
-        p.paper_title, 
-        p.abstract, 
-        p.upload_timestamp, 
-        p.status,
-        v.venue_name, 
-        v.year
-      FROM Papers p
-      LEFT JOIN Venues v ON v.venue_id = p.venue_id
-      WHERE p.paper_id IN (${placeholders})
-      ORDER BY FIELD(p.paper_id, ${placeholders})`,
-      [...recommendedPaperIds, ...recommendedPaperIds]
-    );
-
-    return res.json(recommendedPapers);
+    // Return the AI-generated recommendations directly
+    console.log(`[RECOMMENDATIONS] Returning ${recommendations.length} recommendations for paper ${paper_id}`);
+    const responseData = {
+      paper_id,
+      recommendations: recommendations || []
+    };
+    console.log(`[RECOMMENDATIONS] Response object:`, JSON.stringify(responseData, null, 2));
+    return res.json(responseData);
   } catch (e) {
     console.error(`[RECOMMENDATIONS] Error:`, e);
     return res.status(500).json({ error: String(e) });

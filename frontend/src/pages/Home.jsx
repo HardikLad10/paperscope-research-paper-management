@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { API_BASE_URL } from '../config'
+import PaperModal from '../components/PaperModal'
 import './Home.css'
 
 function Home({ defaultTab = 'search' }) {
@@ -9,6 +11,7 @@ function Home({ defaultTab = 'search' }) {
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [venues, setVenues] = useState([])
+  const [selectedPaperId, setSelectedPaperId] = useState(null)
   
   // Filter states for search
   const [filters, setFilters] = useState({
@@ -263,7 +266,7 @@ function Home({ defaultTab = 'search' }) {
                 <div className="loading">Loading...</div>
               ) : (
                 <>
-                  <PapersList papers={papers} />
+                  <PapersList papers={papers} onPaperClick={setSelectedPaperId} />
                   {pagination.totalPages > 1 && (
                     <PaginationControls
                       currentPage={pagination.page}
@@ -286,7 +289,7 @@ function Home({ defaultTab = 'search' }) {
               {loading ? (
                 <div className="loading">Loading...</div>
               ) : (
-                <PapersList papers={papers} />
+                <PapersList papers={papers} onPaperClick={setSelectedPaperId} />
               )}
             </div>
           )}
@@ -299,15 +302,28 @@ function Home({ defaultTab = 'search' }) {
               {loading ? (
                 <div className="loading">Loading...</div>
               ) : (
-                <MyPapersList papers={papers} onDeletePaper={handleDeletePaper} />
+                <MyPapersList 
+                  papers={papers} 
+                  onDeletePaper={handleDeletePaper}
+                  onPaperClick={setSelectedPaperId}
+                />
               )}
             </div>
           )}
+
+      {/* Paper Modal */}
+      {selectedPaperId && (
+        <PaperModal
+          paper_id={selectedPaperId}
+          onClose={() => setSelectedPaperId(null)}
+          onSelectRecommendation={(paperId) => setSelectedPaperId(paperId)}
+        />
+      )}
     </div>
   )
 }
 
-function PapersList({ papers }) {
+function PapersList({ papers, onPaperClick }) {
   if (papers.length === 0) {
     return <div className="empty-state">No papers found</div>
   }
@@ -315,42 +331,57 @@ function PapersList({ papers }) {
   return (
     <div className="papers-grid">
       {papers.map((paper) => (
-        <div key={paper.paper_id} className="paper-card">
-          <h3 className="paper-title">{paper.paper_title}</h3>
-          <div className="paper-meta">
-            {paper.venue_name && (
-              <span className="badge badge-venue">
-                {paper.venue_name} {paper.year || ''}
+        <div
+          key={paper.paper_id}
+          className="paper-card-link"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (onPaperClick) {
+              console.log('[PapersList] Clicked paper:', paper.paper_id)
+              onPaperClick(paper.paper_id)
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="paper-card">
+            <h3 className="paper-title">{paper.paper_title}</h3>
+            <div className="paper-meta">
+              {paper.venue_name && (
+                <span className="badge badge-venue">
+                  {paper.venue_name} {paper.year || ''}
+                </span>
+              )}
+              <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
+                {paper.status || 'Unknown'}
               </span>
-            )}
-            <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
-              {paper.status || 'Unknown'}
-            </span>
-            {paper.review_count !== undefined && (
-              <span className="badge badge-reviews">
-                {paper.review_count} {paper.review_count === 1 ? 'review' : 'reviews'}
-              </span>
-            )}
-          </div>
-          <p className="paper-abstract">
-            {paper.abstract ? (paper.abstract.length > 150 ? paper.abstract.substring(0, 150) + '...' : paper.abstract) : 'No abstract available'}
-          </p>
-          <div className="paper-footer">
-            <div className="paper-date">
-              {new Date(paper.upload_timestamp).toLocaleDateString()}
+              {paper.review_count !== undefined && (
+                <span className="badge badge-reviews">
+                  {paper.review_count} {paper.review_count === 1 ? 'review' : 'reviews'}
+                </span>
+              )}
             </div>
-            {paper.pdf_url ? (
-              <a
-                href={paper.pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="view-pdf-button"
-              >
-                View PDF
-              </a>
-            ) : (
-              <span className="pdf-unavailable">PDF not available</span>
-            )}
+            <p className="paper-abstract">
+              {paper.abstract ? (paper.abstract.length > 150 ? paper.abstract.substring(0, 150) + '...' : paper.abstract) : 'No abstract available'}
+            </p>
+            <div className="paper-footer">
+              <div className="paper-date">
+                {new Date(paper.upload_timestamp).toLocaleDateString()}
+              </div>
+              {paper.pdf_url ? (
+                <a
+                  href={paper.pdf_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="view-pdf-button"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  View PDF
+                </a>
+              ) : (
+                <span className="pdf-unavailable">PDF not available</span>
+              )}
+            </div>
           </div>
         </div>
       ))}
@@ -358,7 +389,7 @@ function PapersList({ papers }) {
   )
 }
 
-function MyPapersList({ papers, onDeletePaper }) {
+function MyPapersList({ papers, onDeletePaper, onPaperClick }) {
   if (papers.length === 0) {
     return <div className="empty-state">No papers found. You haven't authored any papers yet.</div>
   }
@@ -366,64 +397,76 @@ function MyPapersList({ papers, onDeletePaper }) {
   return (
     <div className="papers-grid">
       {papers.map((paper) => (
-        <div key={paper.paper_id} className="paper-card">
-          <h3 className="paper-title">{paper.paper_title}</h3>
-          <div className="paper-meta">
-            {paper.project_title && (
-              <span className="badge badge-project">
-                Project: {paper.project_title}
-              </span>
-            )}
-            <span className="badge badge-status">
-              Authored Paper
-            </span>
-            {paper.review_count !== undefined && (
-              <span className="badge badge-reviews">
-                {paper.review_count === 0 
-                  ? '0 reviews' 
-                  : paper.review_count === 1 
-                    ? '1 review' 
-                    : `${paper.review_count} reviews`}
-              </span>
-            )}
-            {paper.coauthor_count !== undefined && (
-              <span className="badge badge-coauthors">
-                {paper.coauthor_count === 0 
-                  ? 'Solo author' 
-                  : paper.coauthor_count === 1 
-                    ? '1 co-author' 
-                    : `${paper.coauthor_count} co-authors`}
-              </span>
-            )}
-          </div>
-          {paper.coauthors && (
-            <div className="paper-coauthors">
-              <strong>Co-authors:</strong> {paper.coauthors}
-            </div>
-          )}
-          <div className="paper-footer">
-            <div className="paper-date">
-              <strong>Uploaded:</strong> {paper.upload_timestamp 
-                ? new Date(paper.upload_timestamp).toLocaleDateString() 
-                : 'Unknown date'}
-            </div>
-            <div className="paper-actions">
-              {paper.pdf_url && (
-                <a
-                  href={paper.pdf_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="view-pdf-button"
-                >
-                  View PDF
-                </a>
+        <div key={paper.paper_id} className="paper-card-wrapper">
+          <div
+            className="paper-card-link"
+            onClick={() => onPaperClick && onPaperClick(paper.paper_id)}
+          >
+            <div className="paper-card">
+              <h3 className="paper-title">{paper.paper_title}</h3>
+              <div className="paper-meta">
+                {paper.project_title && (
+                  <span className="badge badge-project">
+                    Project: {paper.project_title}
+                  </span>
+                )}
+                <span className="badge badge-status">
+                  Authored Paper
+                </span>
+                {paper.review_count !== undefined && (
+                  <span className="badge badge-reviews">
+                    {paper.review_count === 0 
+                      ? '0 reviews' 
+                      : paper.review_count === 1 
+                        ? '1 review' 
+                        : `${paper.review_count} reviews`}
+                  </span>
+                )}
+                {paper.coauthor_count !== undefined && (
+                  <span className="badge badge-coauthors">
+                    {paper.coauthor_count === 0 
+                      ? 'Solo author' 
+                      : paper.coauthor_count === 1 
+                        ? '1 co-author' 
+                        : `${paper.coauthor_count} co-authors`}
+                  </span>
+                )}
+              </div>
+              {paper.coauthors && (
+                <div className="paper-coauthors">
+                  <strong>Co-authors:</strong> {paper.coauthors}
+                </div>
               )}
-              <button
-                className="delete-paper-button"
-                onClick={() => onDeletePaper(paper.paper_id)}
-              >
-                Delete
-              </button>
+              <div className="paper-footer">
+                <div className="paper-date">
+                  <strong>Uploaded:</strong> {paper.upload_timestamp 
+                    ? new Date(paper.upload_timestamp).toLocaleDateString() 
+                    : 'Unknown date'}
+                </div>
+                <div className="paper-actions">
+                  {paper.pdf_url && (
+                    <a
+                      href={paper.pdf_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="view-pdf-button"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      View PDF
+                    </a>
+                  )}
+                  <button
+                    className="delete-paper-button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onDeletePaper(paper.paper_id);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -540,4 +583,5 @@ function PaginationControls({ currentPage, totalPages, total, limit, onPageChang
 }
 
 export default Home
+
 
