@@ -164,6 +164,120 @@
   font-size: 1.1em;
 }
 
+/* Search Papers Grid - Uniform Compact Design */
+.search-papers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.search-papers-grid .paper-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 220px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 1px solid #e2e8f0;
+}
+
+.search-papers-grid .paper-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(15, 23, 42, 0.12);
+}
+
+.search-papers-grid .paper-card-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+
+.search-papers-grid .paper-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.search-papers-grid .badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.search-papers-grid .badge-venue {
+  background: #e6fffa;
+  color: #234e52;
+}
+
+.search-papers-grid .badge-status {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
+.search-papers-grid .badge-status.published {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.search-papers-grid .badge-reviews {
+  background: #bee3f8;
+  color: #2c5282;
+}
+
+.paper-card-abstract {
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+  flex: 1;
+}
+
+.paper-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.search-papers-grid .paper-date {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.search-papers-grid .btn {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-papers-grid .btn:hover {
+  transform: translateY(-1px);
+}
+
+.search-papers-grid .btn-secondary {
+  background: #3b82f6;
+  color: white;
+}
+
+.search-papers-grid .btn-secondary:hover {
+  background: #2563eb;
+}
+
+/* Legacy styles for old grid (keeping for compatibility) */
 .papers-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -256,6 +370,12 @@
   color: #6b21a8;
 }
 
+.badge-ai-draft {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fbbf24;
+}
+
 .paper-coauthors {
   margin-top: 10px;
   margin-bottom: 10px;
@@ -340,6 +460,213 @@
 
 .delete-paper-button:active {
   transform: translateY(0);
+}
+
+.edit-paper-button {
+  padding: 6px 16px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.edit-paper-button:hover {
+  background: #45a049;
+  transform: translateY(-1px);
+}
+
+.edit-paper-button:active {
+  transform: translateY(0);
+}
+
+/* My Papers Filter */
+.my-papers-filter {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f7fafc;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 10px 20px;
+  border: 2px solid #e2e8f0;
+  background: white;
+  color: #2d3748;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.filter-btn:hover {
+  background: #f7fafc;
+  border-color: #667eea;
+}
+
+.filter-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* My Papers Grid - Compact Design */
+.my-papers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.my-papers-grid .paper-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 180px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 1px solid #e2e8f0;
+}
+
+.my-papers-grid .paper-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(15, 23, 42, 0.12);
+}
+
+.paper-card-header {
+  margin-bottom: 0.5rem;
+}
+
+.my-papers-grid .paper-card-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.paper-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.my-papers-grid .badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.my-papers-grid .badge-project {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.my-papers-grid .badge-type {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.my-papers-grid .badge-reviews {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.my-papers-grid .badge-ai {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.paper-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 0.75rem;
+}
+
+.paper-card-meta span {
+  display: inline-block;
+}
+
+.paper-card-meta .ai-hint {
+  color: #4338ca;
+  font-weight: 600;
+  font-style: italic;
+}
+
+.paper-card-coauthors {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.paper-card-coauthors strong {
+  color: #475569;
+  font-weight: 600;
+}
+
+.paper-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+
+.my-papers-grid .btn {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.my-papers-grid .btn:hover {
+  transform: translateY(-1px);
+}
+
+.my-papers-grid .btn-primary {
+  background: #22c55e;
+  color: white;
+}
+
+.my-papers-grid .btn-primary:hover {
+  background: #16a34a;
+}
+
+.my-papers-grid .btn-secondary {
+  background: #3b82f6;
+  color: white;
+}
+
+.my-papers-grid .btn-secondary:hover {
+  background: #2563eb;
+}
+
+.my-papers-grid .btn-danger {
+  background: #ef4444;
+  color: white;
+}
+
+.my-papers-grid .btn-danger:hover {
+  background: #dc2626;
 }
 
 .query-section {
@@ -466,4 +793,3 @@
   border-color: #667eea;
   font-weight: 600;
 }
-

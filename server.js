@@ -62,7 +62,7 @@ app.get("/api/papers", async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
   const offset = (page - 1) * limit;
-  
+
   try {
     // Build WHERE conditions dynamically
     const whereConditions = [];
@@ -87,7 +87,7 @@ app.get("/api/papers", async (req, res) => {
       params.push(status);
     }
 
-    const whereClause = whereConditions.length > 0 
+    const whereClause = whereConditions.length > 0
       ? "WHERE " + whereConditions.join(" AND ")
       : "";
 
@@ -99,7 +99,7 @@ app.get("/api/papers", async (req, res) => {
     if (whereClause) {
       countQuery += whereClause;
     }
-    
+
     const [countRows] = await pool.execute(countQuery, params);
     const total = countRows[0]?.total || 0;
 
@@ -127,7 +127,7 @@ app.get("/api/papers", async (req, res) => {
       ORDER BY p.upload_timestamp DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
-    
+
     const [rows] = await pool.execute(dataQuery, params);
 
     return res.json({
@@ -231,27 +231,27 @@ app.get("/api/venues/recent", async (req, res) => {
 app.get("/api/authors/:user_id/portfolio", async (req, res) => {
   const { user_id } = req.params;
   const since = String(req.query.since || "2018-01-01");
-  
+
   let conn;
   try {
     conn = await pool.getConnection();
-    
+
     // Call stored procedure
     const [resultSets] = await conn.query(
       'CALL sp_author_portfolio_with_coauthors(?)',
       [user_id]
     );
-    
+
     // MySQL returns an array of result sets
     const portfolio = Array.isArray(resultSets[0]) ? resultSets[0] : [];
-    
+
     // Filter by since date if provided (client-side filter for now)
     // Note: The procedure doesn't filter by date, so we filter in JS
     const filtered = portfolio.filter(paper => {
       if (!paper.upload_timestamp) return true;
       return new Date(paper.upload_timestamp) >= new Date(since);
     });
-    
+
     return res.json(filtered);
   } catch (e) {
     console.error("Error in /api/authors/:user_id/portfolio:", e);
@@ -320,7 +320,7 @@ app.get("/api/authors/:user_id/insights", async (req, res) => {
  */
 app.get("/api/reviewers/top", async (req, res) => {
   const from = String(req.query.from || "2024-01-01");
-  const to   = String(req.query.to   || "2025-12-31");
+  const to = String(req.query.to || "2025-12-31");
   try {
     const [rows] = await pool.execute(
       `
@@ -420,12 +420,12 @@ app.post("/api/papers/:paper_id/reviews", async (req, res) => {
     return res.status(201).json({ ok: true, review_id: reviewId });
   } catch (err) {
     console.error("Error in POST /api/papers/:paper_id/reviews:", err);
-    
+
     // If trigger blocks this (e.g., author reviewing own paper)
     if (err.code === "ER_SIGNAL_EXCEPTION" || err.message.includes("own paper")) {
       return res.status(400).json({ error: "Authors cannot review their own paper" });
     }
-    
+
     // Foreign key violation (invalid user_id or paper_id)
     if (err.code === "ER_NO_REFERENCED_ROW_2" || err.code === "ER_NO_REFERENCED_ROW") {
       return res.status(400).json({ error: "Invalid user_id or paper_id" });
@@ -513,7 +513,7 @@ app.get("/api/reviewable-papers", async (req, res) => {
 app.get("/api/advanced/query1", async (req, res) => {
   const year = String(req.query.year || "2024");
   const user_id = String(req.query.user_id || "");
-  
+
   if (!user_id) {
     return res.status(400).json({ error: "user_id is required" });
   }
@@ -621,7 +621,7 @@ app.get("/api/advanced/query3", async (req, res) => {
  */
 app.get("/api/advanced/query4", async (req, res) => {
   const user_id = String(req.query.user_id || "");
-  
+
   if (!user_id) {
     return res.status(400).json({ error: "user_id is required" });
   }
@@ -660,7 +660,7 @@ app.get("/api/advanced/query4", async (req, res) => {
  */
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body;
-  
+
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required" });
   }
@@ -701,6 +701,78 @@ app.post("/api/auth/login", async (req, res) => {
     });
   } catch (e) {
     return res.status(500).json({ error: String(e) });
+  }
+});
+
+/**
+ * Create AI draft paper from LLM recommendation
+ * POST /api/ai-drafts
+ * Body: { source_paper_id, paper_id, title, abstract, user_id }
+ */
+app.post("/api/ai-drafts", async (req, res) => {
+  const { source_paper_id, paper_id, title, abstract, user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
+  if (!source_paper_id || !paper_id || !title) {
+    return res.status(400).json({ error: 'Missing required fields: source_paper_id, paper_id, title' });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // Call the stored procedure
+    await conn.query(
+      'CALL sp_create_ai_draft_paper(?, ?, ?, ?, ?)',
+      [user_id, source_paper_id, paper_id, title, abstract || '']
+    );
+
+    return res.status(201).json({ message: 'AI draft created', paper_id });
+  } catch (err) {
+    console.error('[AI-DRAFT] Error:', err);
+    return res.status(500).json({
+      error: err.message || 'Failed to create AI draft',
+      message: err.message || 'Failed to create AI draft'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+/**
+ * Update a paper (used for editing AI drafts and promoting to Under Review)
+ * PUT /api/papers/:paper_id
+ * Body: { paper_title, abstract, pdf_url, status, venue_id }
+ */
+app.put("/api/papers/:paper_id", async (req, res) => {
+  const { paper_id } = req.params;
+  const { paper_title, abstract, pdf_url, status, venue_id } = req.body;
+
+  if (!paper_title) {
+    return res.status(400).json({ message: 'paper_title is required' });
+  }
+
+  try {
+    await pool.execute(
+      `UPDATE Papers
+       SET paper_title = ?, abstract = ?, pdf_url = ?, status = ?, venue_id = ?
+       WHERE paper_id = ?`,
+      [paper_title, abstract, pdf_url, status, venue_id, paper_id]
+    );
+
+    return res.json({ message: 'Paper updated successfully' });
+  } catch (err) {
+    console.error('[PUT /api/papers/:paper_id] Error:', err);
+
+    // Surface trigger error messages (e.g., "AI paper must have a real PDF URL...")
+    if (err.sqlMessage) {
+      return res.status(400).json({ message: err.sqlMessage });
+    }
+
+    return res.status(400).json({ message: err.message || 'Update failed' });
   }
 });
 
@@ -839,19 +911,19 @@ app.delete("/api/papers/:paper_id", async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    
+
     // Call stored procedure
     await conn.query("CALL sp_delete_paper_safe(?, ?)", [paper_id, user_id]);
-    
+
     return res.json({ ok: true, paper_id });
   } catch (e) {
     console.error("Error in DELETE /api/papers/:paper_id:", e);
-    
+
     // Surface the procedure error message if available
     if (e.code === "ER_SIGNAL_EXCEPTION" || e.message) {
       return res.status(400).json({ error: e.message || String(e) });
     }
-    
+
     return res.status(400).json({ error: "Failed to delete paper" });
   } finally {
     if (conn) conn.release();
@@ -897,8 +969,8 @@ app.get("/api/papers/:paper_id/recommendations", async (req, res) => {
   const { paper_id } = req.params;
 
   if (!isVertexAIConfigured()) {
-    return res.status(503).json({ 
-      error: "Recommendation service not available. GCP_PROJECT_ID not set." 
+    return res.status(503).json({
+      error: "Recommendation service not available. GCP_PROJECT_ID not set."
     });
   }
 
@@ -950,7 +1022,7 @@ Return ONLY the JSON array, no other text. Generate 5-10 recommendations.`;
     const modelName = 'gemini-2.5-flash'; // Use available model from your project
     const genAIEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
     console.log(`[RECOMMENDATIONS] Using Generative AI API with model: ${modelName}`);
-    
+
     // Get API key from service account for Generative AI API
     // The Generative AI API can use an API key or OAuth token
     let apiKey;
@@ -959,18 +1031,18 @@ Return ONLY the JSON array, no other text. Generate 5-10 recommendations.`;
       const authOptions = {
         scopes: ['https://www.googleapis.com/auth/generative-language'],
       };
-      
+
       if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
         authOptions.keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
       }
-      
+
       const auth = new GoogleAuth(authOptions);
       const client = await auth.getClient();
       const tokenResponse = await client.getAccessToken();
       apiKey = tokenResponse.token; // Use as bearer token
     } catch (authError) {
       console.error(`[RECOMMENDATIONS] Authentication error:`, authError);
-      return res.status(503).json({ 
+      return res.status(503).json({
         error: "Failed to authenticate with GCP.",
         details: authError.message
       });
@@ -1006,10 +1078,10 @@ Return ONLY the JSON array, no other text. Generate 5-10 recommendations.`;
 
     const genAIResponse = await response.json();
     // Extract text from Generative AI API response
-    const text = genAIResponse.candidates?.[0]?.content?.parts?.[0]?.text || 
-                 genAIResponse.candidates?.[0]?.text || 
-                 genAIResponse.text ||
-                 '';
+    const text = genAIResponse.candidates?.[0]?.content?.parts?.[0]?.text ||
+      genAIResponse.candidates?.[0]?.text ||
+      genAIResponse.text ||
+      '';
     const trimmedText = String(text).trim();
     console.log(`[RECOMMENDATIONS] LLM response length: ${trimmedText.length} chars`);
     console.log(`[RECOMMENDATIONS] LLM response (first 1000 chars):`, trimmedText.substring(0, 1000));
@@ -1026,7 +1098,7 @@ Return ONLY the JSON array, no other text. Generate 5-10 recommendations.`;
         // Remove any code block markers
         jsonText = jsonText.replace(/^```\s*/g, '').replace(/\s*```\s*$/g, '').trim();
       }
-      
+
       // Extract JSON array from the response (handle truncated responses)
       // Try to find a complete JSON array
       const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
@@ -1060,27 +1132,27 @@ Return ONLY the JSON array, no other text. Generate 5-10 recommendations.`;
         console.log(`[RECOMMENDATIONS] No JSON array found, trying to parse entire response`);
         recommendations = JSON.parse(jsonText);
       }
-      
+
       console.log(`[RECOMMENDATIONS] Parsed recommendations count: ${Array.isArray(recommendations) ? recommendations.length : 'not an array'}`);
-      
+
       // Ensure it's an array
       if (!Array.isArray(recommendations)) {
         console.error(`[RECOMMENDATIONS] Response is not an array:`, typeof recommendations);
         throw new Error('Response is not an array');
       }
-      
+
       // Validate structure
       const beforeFilter = recommendations.length;
-      recommendations = recommendations.filter(rec => 
+      recommendations = recommendations.filter(rec =>
         rec && typeof rec === 'object' && rec.title
       );
       console.log(`[RECOMMENDATIONS] After filtering: ${recommendations.length} valid recommendations (from ${beforeFilter} total)`);
-      
+
       // Log first recommendation for debugging
       if (recommendations.length > 0) {
         console.log(`[RECOMMENDATIONS] First recommendation:`, JSON.stringify(recommendations[0], null, 2));
       }
-      
+
     } catch (parseError) {
       console.error(`[RECOMMENDATIONS] Failed to parse LLM response:`, parseError.message);
       console.error(`[RECOMMENDATIONS] Parse error stack:`, parseError.stack);

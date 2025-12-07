@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { API_BASE_URL } from '../config'
 import PaperModal from '../components/PaperModal'
+import EditPaperModal from '../components/EditPaperModal'
 import './Home.css'
 
 function Home({ defaultTab = 'search' }) {
@@ -12,7 +13,8 @@ function Home({ defaultTab = 'search' }) {
   const [successMessage, setSuccessMessage] = useState('')
   const [venues, setVenues] = useState([])
   const [selectedPaperId, setSelectedPaperId] = useState(null)
-  
+  const [editingPaper, setEditingPaper] = useState(null)
+
   // Filter states for search
   const [filters, setFilters] = useState({
     q: '',
@@ -162,7 +164,7 @@ function Home({ defaultTab = 'search' }) {
       setPapers((prev) => prev.filter((p) => p.paper_id !== paperId))
       setError('')
       setSuccessMessage(`Paper "${paperTitle}" has been successfully deleted.`)
-      
+
       // Clear success message after 5 seconds
       setTimeout(() => {
         setSuccessMessage('')
@@ -205,118 +207,137 @@ function Home({ defaultTab = 'search' }) {
 
   return (
     <div className="content-panel">
-          {error && <div className="error-message">{error}</div>}
-          {successMessage && <div className="success-message">{successMessage}</div>}
+      {error && <div className="error-message">{error}</div>}
+      {successMessage && <div className="success-message">{successMessage}</div>}
 
-          {activeTab === 'search' && (
-            <div className="search-section">
-              <div className="filter-bar">
-                <div className="filter-group filter-search">
-                  <label htmlFor="search-input">Search</label>
-                  <input
-                    id="search-input"
-                    type="text"
-                    value={filters.q}
-                    onChange={(e) => handleFilterChange('q', e.target.value)}
-                    placeholder="Search by paper title or abstract..."
-                    onKeyPress={(e) => e.key === 'Enter' && searchPapers()}
-                  />
-                </div>
-
-                <div className="filter-group">
-                  <label htmlFor="venue-filter">Venue</label>
-                  <select
-                    id="venue-filter"
-                    value={filters.venue_id}
-                    onChange={(e) => handleFilterChange('venue_id', e.target.value)}
-                  >
-                    <option value="">All venues</option>
-                    {venues.map(v => (
-                      <option key={v.venue_id} value={v.venue_id}>
-                        {v.venue_name} {v.year ? `(${v.year})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="filter-group">
-                  <label htmlFor="status-filter">Status</label>
-                  <select
-                    id="status-filter"
-                    value={filters.status}
-                    onChange={(e) => handleFilterChange('status', e.target.value)}
-                  >
-                    <option value="">All statuses</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Under Review">Under Review</option>
-                    <option value="Published">Published</option>
-                  </select>
-                </div>
-
-                <div className="filter-actions">
-                  <button onClick={searchPapers} className="btn-apply">
-                    Search / Apply Filters
-                  </button>
-                  <button onClick={resetFilters} className="btn-reset">
-                    Reset
-                  </button>
-                </div>
-              </div>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <>
-                  <PapersList papers={papers} onPaperClick={setSelectedPaperId} />
-                  {pagination.totalPages > 1 && (
-                    <PaginationControls
-                      currentPage={pagination.page}
-                      totalPages={pagination.totalPages}
-                      total={pagination.total}
-                      limit={pagination.limit}
-                      onPageChange={handlePageChange}
-                    />
-                  )}
-                </>
-              )}
+      {activeTab === 'search' && (
+        <div className="search-section">
+          <div className="filter-bar">
+            <div className="filter-group filter-search">
+              <label htmlFor="search-input">Search</label>
+              <input
+                id="search-input"
+                type="text"
+                value={filters.q}
+                onChange={(e) => handleFilterChange('q', e.target.value)}
+                placeholder="Search by paper title or abstract..."
+                onKeyPress={(e) => e.key === 'Enter' && searchPapers()}
+              />
             </div>
-          )}
 
-          {activeTab === 'all' && (
-            <div className="all-papers-section">
-              <button onClick={loadAllPapers} className="refresh-button">
-                Refresh Papers
-              </button>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <PapersList papers={papers} onPaperClick={setSelectedPaperId} />
-              )}
+            <div className="filter-group">
+              <label htmlFor="venue-filter">Venue</label>
+              <select
+                id="venue-filter"
+                value={filters.venue_id}
+                onChange={(e) => handleFilterChange('venue_id', e.target.value)}
+              >
+                <option value="">All venues</option>
+                {venues.map(v => (
+                  <option key={v.venue_id} value={v.venue_id}>
+                    {v.venue_name} {v.year ? `(${v.year})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
 
-          {activeTab === 'my-papers' && (
-            <div className="my-papers-section">
-              <button onClick={loadMyPapers} className="refresh-button">
-                Refresh My Papers
+            <div className="filter-group">
+              <label htmlFor="status-filter">Status</label>
+              <select
+                id="status-filter"
+                value={filters.status}
+                onChange={(e) => handleFilterChange('status', e.target.value)}
+              >
+                <option value="">All statuses</option>
+                <option value="Draft">Draft</option>
+                <option value="Under Review">Under Review</option>
+                <option value="Published">Published</option>
+              </select>
+            </div>
+
+            <div className="filter-actions">
+              <button onClick={searchPapers} className="btn-apply">
+                Search / Apply Filters
               </button>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <MyPapersList 
-                  papers={papers} 
-                  onDeletePaper={handleDeletePaper}
-                  onPaperClick={setSelectedPaperId}
+              <button onClick={resetFilters} className="btn-reset">
+                Reset
+              </button>
+            </div>
+          </div>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : (
+            <>
+              <PapersList papers={papers} onPaperClick={setSelectedPaperId} />
+              {pagination.totalPages > 1 && (
+                <PaginationControls
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                  total={pagination.total}
+                  limit={pagination.limit}
+                  onPageChange={handlePageChange}
                 />
               )}
-            </div>
+            </>
           )}
+        </div>
+      )}
+
+      {activeTab === 'all' && (
+        <div className="all-papers-section">
+          <button onClick={loadAllPapers} className="refresh-button">
+            Refresh Papers
+          </button>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : (
+            <PapersList papers={papers} onPaperClick={setSelectedPaperId} />
+          )}
+        </div>
+      )}
+
+      {activeTab === 'my-papers' && (
+        <div className="my-papers-section">
+          <button onClick={loadMyPapers} className="refresh-button">
+            Refresh My Papers
+          </button>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : (
+            <MyPapersList
+              papers={papers}
+              onDeletePaper={handleDeletePaper}
+              onPaperClick={setSelectedPaperId}
+              onEditPaper={(paper) => setEditingPaper(paper)}
+            />
+          )}
+        </div>
+      )}
 
       {/* Paper Modal */}
       {selectedPaperId && (
         <PaperModal
           paper_id={selectedPaperId}
-          onClose={() => setSelectedPaperId(null)}
+          onClose={() => {
+            setSelectedPaperId(null)
+            // Refresh My Papers if we're on that tab
+            if (activeTab === 'my-papers') {
+              loadMyPapers()
+            }
+          }}
           onSelectRecommendation={(paperId) => setSelectedPaperId(paperId)}
+        />
+      )}
+
+      {/* Edit Paper Modal */}
+      {editingPaper && (
+        <EditPaperModal
+          paper={editingPaper}
+          onClose={() => setEditingPaper(null)}
+          onSave={() => {
+            setEditingPaper(null)
+            loadMyPapers()
+          }}
         />
       )}
     </div>
@@ -329,11 +350,11 @@ function PapersList({ papers, onPaperClick }) {
   }
 
   return (
-    <div className="papers-grid">
+    <div className="search-papers-grid">
       {papers.map((paper) => (
         <div
           key={paper.paper_id}
-          className="paper-card-link"
+          className="paper-card"
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -342,46 +363,48 @@ function PapersList({ papers, onPaperClick }) {
               onPaperClick(paper.paper_id)
             }
           }}
-          style={{ cursor: 'pointer' }}
         >
-          <div className="paper-card">
+          <div className="paper-card-header">
             <h3 className="paper-title">{paper.paper_title}</h3>
-            <div className="paper-meta">
-              {paper.venue_name && (
-                <span className="badge badge-venue">
-                  {paper.venue_name} {paper.year || ''}
-                </span>
-              )}
-              <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
-                {paper.status || 'Unknown'}
+          </div>
+
+          <div className="paper-card-badges">
+            {paper.venue_name && (
+              <span className="badge badge-venue">
+                {paper.venue_name} {paper.year || ''}
               </span>
-              {paper.review_count !== undefined && (
-                <span className="badge badge-reviews">
-                  {paper.review_count} {paper.review_count === 1 ? 'review' : 'reviews'}
-                </span>
-              )}
-            </div>
-            <p className="paper-abstract">
-              {paper.abstract ? (paper.abstract.length > 150 ? paper.abstract.substring(0, 150) + '...' : paper.abstract) : 'No abstract available'}
-            </p>
-            <div className="paper-footer">
-              <div className="paper-date">
-                {new Date(paper.upload_timestamp).toLocaleDateString()}
-              </div>
-              {paper.pdf_url ? (
-                <a
-                  href={paper.pdf_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="view-pdf-button"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  View PDF
-                </a>
-              ) : (
-                <span className="pdf-unavailable">PDF not available</span>
-              )}
-            </div>
+            )}
+            <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
+              {paper.status || 'Unknown'}
+            </span>
+            {paper.review_count !== undefined && (
+              <span className="badge badge-reviews">
+                {paper.review_count} {paper.review_count === 1 ? 'review' : 'reviews'}
+              </span>
+            )}
+          </div>
+
+          <div className="paper-card-abstract">
+            {paper.abstract
+              ? (paper.abstract.length > 120 ? paper.abstract.substring(0, 120) + '...' : paper.abstract)
+              : 'No abstract available'}
+          </div>
+
+          <div className="paper-card-footer">
+            <span className="paper-date">
+              {new Date(paper.upload_timestamp).toLocaleDateString()}
+            </span>
+            {paper.pdf_url && (
+              <button
+                className="btn btn-secondary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.open(paper.pdf_url, '_blank')
+                }}
+              >
+                View PDF
+              </button>
+            )}
           </div>
         </div>
       ))}
@@ -389,89 +412,124 @@ function PapersList({ papers, onPaperClick }) {
   )
 }
 
-function MyPapersList({ papers, onDeletePaper, onPaperClick }) {
+function MyPapersList({ papers, onDeletePaper, onPaperClick, onEditPaper }) {
+  const [statusFilter, setStatusFilter] = useState('ALL')
+
   if (papers.length === 0) {
     return <div className="empty-state">No papers found. You haven't authored any papers yet.</div>
   }
 
+  // Filter papers based on status
+  const filteredPapers = papers.filter((p) => {
+    if (statusFilter === 'ALL') return true
+    if (statusFilter === 'AI_DRAFT') return p.status === 'AI_DRAFT'
+    if (statusFilter === 'UNDER_REVIEW') return p.status === 'Under Review'
+    return true
+  })
+
   return (
-    <div className="papers-grid">
-      {papers.map((paper) => (
-        <div key={paper.paper_id} className="paper-card-wrapper">
-          <div
-            className="paper-card-link"
-            onClick={() => onPaperClick && onPaperClick(paper.paper_id)}
-          >
-            <div className="paper-card">
+    <>
+      <div className="my-papers-filter">
+        <button
+          className={`filter-btn ${statusFilter === 'ALL' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('ALL')}
+        >
+          All ({papers.length})
+        </button>
+        <button
+          className={`filter-btn ${statusFilter === 'AI_DRAFT' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('AI_DRAFT')}
+        >
+          AI Drafts ({papers.filter(p => p.status === 'AI_DRAFT').length})
+        </button>
+        <button
+          className={`filter-btn ${statusFilter === 'UNDER_REVIEW' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('UNDER_REVIEW')}
+        >
+          Under Review ({papers.filter(p => p.status === 'Under Review').length})
+        </button>
+      </div>
+
+      {filteredPapers.length === 0 && (
+        <div className="empty-state">No papers match the selected filter.</div>
+      )}
+
+      <div className="my-papers-grid">
+        {filteredPapers.map((paper) => (
+          <div key={paper.paper_id} className="paper-card" onClick={() => onPaperClick && onPaperClick(paper.paper_id)}>
+            <div className="paper-card-header">
               <h3 className="paper-title">{paper.paper_title}</h3>
-              <div className="paper-meta">
-                {paper.project_title && (
-                  <span className="badge badge-project">
-                    Project: {paper.project_title}
-                  </span>
-                )}
-                <span className="badge badge-status">
-                  Authored Paper
-                </span>
-                {paper.review_count !== undefined && (
-                  <span className="badge badge-reviews">
-                    {paper.review_count === 0 
-                      ? '0 reviews' 
-                      : paper.review_count === 1 
-                        ? '1 review' 
-                        : `${paper.review_count} reviews`}
-                  </span>
-                )}
-                {paper.coauthor_count !== undefined && (
-                  <span className="badge badge-coauthors">
-                    {paper.coauthor_count === 0 
-                      ? 'Solo author' 
-                      : paper.coauthor_count === 1 
-                        ? '1 co-author' 
-                        : `${paper.coauthor_count} co-authors`}
-                  </span>
-                )}
-              </div>
-              {paper.coauthors && (
-                <div className="paper-coauthors">
-                  <strong>Co-authors:</strong> {paper.coauthors}
-                </div>
+            </div>
+
+            <div className="paper-card-badges">
+              {paper.project_title && (
+                <span className="badge badge-project">{paper.project_title}</span>
               )}
-              <div className="paper-footer">
-                <div className="paper-date">
-                  <strong>Uploaded:</strong> {paper.upload_timestamp 
-                    ? new Date(paper.upload_timestamp).toLocaleDateString() 
-                    : 'Unknown date'}
-                </div>
-                <div className="paper-actions">
-                  {paper.pdf_url && (
-                    <a
-                      href={paper.pdf_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="view-pdf-button"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View PDF
-                    </a>
-                  )}
-                  <button
-                    className="delete-paper-button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onDeletePaper(paper.paper_id);
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
+              <span className="badge badge-type">{paper.status || 'Authored Paper'}</span>
+              {paper.review_count !== undefined && (
+                <span className="badge badge-reviews">
+                  {paper.review_count} {paper.review_count === 1 ? 'review' : 'reviews'}
+                </span>
+              )}
+              {paper.status === 'AI_DRAFT' && (
+                <span className="badge badge-ai">AI Draft</span>
+              )}
+            </div>
+
+            <div className="paper-card-meta">
+              <span>
+                {paper.coauthor_count > 0
+                  ? `${paper.coauthor_count} co-author${paper.coauthor_count === 1 ? '' : 's'}`
+                  : 'Solo author'}
+              </span>
+              <span>
+                {paper.upload_timestamp
+                  ? new Date(paper.upload_timestamp).toLocaleDateString()
+                  : 'Unknown date'}
+              </span>
+            </div>
+
+            {paper.coauthors && paper.coauthors !== 'No co-authors' && (
+              <div className="paper-card-coauthors">
+                <strong>Co-authors:</strong> {paper.coauthors}
               </div>
+            )}
+
+            <div className="paper-card-actions">
+              {paper.pdf_url && paper.pdf_url !== 'AI_DRAFT_NO_PDF' && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(paper.pdf_url, '_blank');
+                  }}
+                >
+                  View PDF
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onEditPaper) onEditPaper(paper);
+                }}
+              >
+                Edit
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeletePaper(paper.paper_id);
+                }}
+              >
+                Delete
+              </button>
             </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   )
 }
 
@@ -511,7 +569,7 @@ function PaginationControls({ currentPage, totalPages, total, limit, onPageChang
   const getPageNumbers = () => {
     const pages = []
     const maxVisible = 5
-    
+
     if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i)

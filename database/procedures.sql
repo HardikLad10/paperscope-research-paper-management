@@ -115,9 +115,11 @@ BEGIN
     GROUP BY p.status;
 END$$
 
-DELIMITER $$
+-- ============================================================
+-- Stored Procedure: sp_author_portfolio_with_coauthors
+-- ============================================================
 
-DROP PROCEDURE IF EXISTS sp_author_portfolio_with_coauthors $$
+DROP PROCEDURE IF EXISTS sp_author_portfolio_with_coauthors$$
 
 CREATE PROCEDURE sp_author_portfolio_with_coauthors (
     IN p_author_id VARCHAR(50)
@@ -136,6 +138,8 @@ BEGIN
         p.paper_title,
         p.pdf_url,
         p.upload_timestamp,
+        p.status,
+        p.ai_generated,
         proj.project_id,
         proj.project_title,
         -- total reviews per paper (pre-aggregated in a subquery)
@@ -179,12 +183,166 @@ BEGIN
         p.paper_title,
         p.pdf_url,
         p.upload_timestamp,
+        p.status,
+        p.ai_generated,
+        p.venue_id,
         proj.project_id,
         proj.project_title,
         r.review_count
     ORDER BY
         p.upload_timestamp DESC,
         p.paper_title;
+END$$
+
+-- ============================================================
+-- Stored Procedure: sp_delete_paper_safe
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS sp_delete_paper_safe $$
+
+CREATE PROCEDURE sp_delete_paper_safe (
+    IN p_paper_id VARCHAR(50),
+    IN p_user_id  VARCHAR(50)   -- author who is requesting deletion
+)
+BEGIN
+    DECLARE v_is_author       INT DEFAULT 0;
+    DECLARE v_coauthor_count  INT DEFAULT 0;
+
+    -- Advanced Query #1:
+    -- Check that the paper exists AND that p_user_id is an author,
+    -- using an EXISTS subquery instead of an explicit JOIN.
+    SELECT COUNT(*) INTO v_is_author
+    FROM Papers p
+    WHERE p.paper_id = p_paper_id
+      AND EXISTS (
+          SELECT 1
+          FROM Authorship a
+          WHERE a.paper_id = p.paper_id
+            AND a.user_id  = p_user_id
+      );
+
+    IF v_is_author = 0 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Paper not found or user is not an author';
+    END IF;
+
+    -- Advanced Query #2:
+    -- Count co-authors using a subquery that performs GROUP BY.
+    -- If there are any other authors, we refuse to delete.
+    SELECT COALESCE(t.coauthor_count, 0) INTO v_coauthor_count
+    FROM (
+        SELECT paper_id, COUNT(*) AS coauthor_count
+        FROM Authorship
+        WHERE paper_id = p_paper_id
+          AND user_id <> p_user_id      -- exclude requesting author
+        GROUP BY paper_id
+    ) AS t;
+
+    IF v_coauthor_count > 0 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Cannot delete: paper has co-authors';
+    END IF;
+
+    -- Transaction block with explicit isolation level
+    SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+    START TRANSACTION;
+
+    -- 1) Delete reviews for this paper
+    DELETE FROM Reviews
+    WHERE paper_id = p_paper_id;
+
+    -- 2) Delete related paper links (both directions)
+    DELETE FROM RelatedPapers
+    WHERE paper_id = p_paper_id
+       OR related_paper_id = p_paper_id;
+
+    -- 3) Delete authorship links
+    DELETE FROM Authorship
+    WHERE paper_id = p_paper_id;
+
+    -- 4) Finally delete the paper itself
+    DELETE FROM Papers
+    WHERE paper_id = p_paper_id;
+
+    COMMIT;
+END$$
+
+-- ============================================================
+-- Stored Procedure: sp_create_ai_draft_paper
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS sp_create_ai_draft_paper$$
+
+CREATE PROCEDURE sp_create_ai_draft_paper (
+    IN p_creator_user_id   VARCHAR(10),
+    IN p_source_paper_id   VARCHAR(50),
+    IN p_paper_id          VARCHAR(50),
+    IN p_title             VARCHAR(255),
+    IN p_abstract          TEXT
+)
+BEGIN
+    DECLARE v_venue_id VARCHAR(10);
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+    START TRANSACTION;
+
+    -- 1) Basic sanity checks
+    IF p_title IS NULL OR CHAR_LENGTH(TRIM(p_title)) = 0 THEN
+        SIGNAL SQLSTATE '45000'
+          SET MESSAGE_TEXT = 'AI draft must have a title';
+    END IF;
+
+    -- 2) Get venue from source paper
+    SELECT venue_id
+      INTO v_venue_id
+      FROM Papers
+     WHERE paper_id = p_source_paper_id
+     LIMIT 1;
+
+    IF v_venue_id IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+          SET MESSAGE_TEXT = 'Source paper not found or has no venue';
+    END IF;
+
+    -- 3) Insert new AI draft paper
+    INSERT INTO Papers (
+        paper_id,
+        paper_title,
+        abstract,
+        pdf_url,
+        upload_timestamp,
+        venue_id,
+        status,
+        ai_generated,
+        source_paper_id
+    )
+    VALUES (
+        p_paper_id,
+        p_title,
+        p_abstract,
+        'AI_DRAFT_NO_PDF',   -- clear placeholder
+        NOW(),
+        v_venue_id,
+        'AI_DRAFT',
+        1,
+        p_source_paper_id
+    );
+
+    -- 4) Link creator as author
+    INSERT INTO Authorship (user_id, paper_id)
+    VALUES (p_creator_user_id, p_paper_id);
+
+    -- 5) Link in RelatedPapers for traceability
+    INSERT INTO RelatedPapers (paper_id, related_paper_id, relation_type)
+    VALUES (p_source_paper_id, p_paper_id, 'AI_RECOMMENDED')
+    ON DUPLICATE KEY UPDATE relation_type = 'AI_RECOMMENDED';
+
+    COMMIT;
 END$$
 
 DELIMITER ;

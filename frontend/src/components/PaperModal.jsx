@@ -1,30 +1,32 @@
 import { useEffect, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import { API_BASE_URL } from '../config'
 import './PaperModal.css'
 
-function PaperModal({ paper_id, onClose, onSelectRecommendation }) {
+function PaperModal({ paper_id: sourcePaperId, onClose, onSelectRecommendation }) {
   const [paperData, setPaperData] = useState(null)
   const [recommendations, setRecommendations] = useState([])
   const [loading, setLoading] = useState(true)
   const [recommendationsLoading, setRecommendationsLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [addingDraft, setAddingDraft] = useState(null) // Track which recommendation is being added
 
   // Debug: Log when modal opens
   useEffect(() => {
-    if (paper_id) {
-      console.log('[PaperModal] Opening modal for paper:', paper_id)
+    if (sourcePaperId) {
+      console.log('[PaperModal] Opening modal for paper:', sourcePaperId)
     }
-  }, [paper_id])
+  }, [sourcePaperId])
 
   // Fetch Paper Metadata
   useEffect(() => {
     async function loadPaper() {
-      if (!paper_id) return
+      if (!sourcePaperId) return
       
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`${API_BASE_URL}/api/papers/${encodeURIComponent(paper_id)}`)
+        const res = await fetch(`${API_BASE_URL}/api/papers/${encodeURIComponent(sourcePaperId)}`)
         if (!res.ok) throw new Error('Failed to load paper')
         const json = await res.json()
         setPaperData(json)
@@ -36,16 +38,16 @@ function PaperModal({ paper_id, onClose, onSelectRecommendation }) {
       }
     }
     loadPaper()
-  }, [paper_id])
+  }, [sourcePaperId])
 
   // Fetch AI Recommendations
   useEffect(() => {
     async function loadRecs() {
-      if (!paper_id) return
+      if (!sourcePaperId) return
       
       setRecommendationsLoading(true)
       try {
-        const res = await fetch(`${API_BASE_URL}/api/papers/${encodeURIComponent(paper_id)}/recommendations`)
+        const res = await fetch(`${API_BASE_URL}/api/papers/${encodeURIComponent(sourcePaperId)}/recommendations`)
         if (res.ok) {
           const json = await res.json()
           // Backend now returns { paper_id, recommendations: [...] }
@@ -64,7 +66,45 @@ function PaperModal({ paper_id, onClose, onSelectRecommendation }) {
       }
     }
     loadRecs()
-  }, [paper_id])
+  }, [sourcePaperId])
+
+  // Handler for adding AI draft to My Papers
+  const handleAddAIDraft = async (rec) => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    if (!user.user_id) {
+      alert('Please log in to add papers to your collection')
+      return
+    }
+
+    setAddingDraft(rec.title)
+    try {
+      const newPaperId = "P_" + uuidv4()
+      const res = await fetch(`${API_BASE_URL}/api/ai-drafts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_paper_id: sourcePaperId,
+          paper_id: newPaperId,
+          title: rec.title,
+          abstract: rec.summary || rec.abstract || '',
+          user_id: user.user_id
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(err.message || err.error || 'Failed to create AI draft')
+        return
+      }
+
+      alert('AI draft created. Check it under My Papers.')
+    } catch (e) {
+      console.error('Error creating AI draft:', e)
+      alert('Error creating AI draft: ' + (e.message || 'Unknown error'))
+    } finally {
+      setAddingDraft(null)
+    }
+  }
 
   // AI recommendations are fictional, so clicking them does nothing
   // (Option A: no action on click)
@@ -96,7 +136,7 @@ function PaperModal({ paper_id, onClose, onSelectRecommendation }) {
           <>
             <div className="modal-header">
               <h2>{paperData.paper_title}</h2>
-              <div className="modal-paper-id">Paper ID: {paper_id}</div>
+              <div className="modal-paper-id">Paper ID: {sourcePaperId}</div>
             </div>
 
             <div className="modal-meta">
@@ -162,6 +202,13 @@ function PaperModal({ paper_id, onClose, onSelectRecommendation }) {
                           <strong>Why recommended:</strong> {rec.reason}
                         </div>
                       )}
+                      <button
+                        className="add-ai-draft-button"
+                        onClick={() => handleAddAIDraft(rec)}
+                        disabled={addingDraft === rec.title}
+                      >
+                        {addingDraft === rec.title ? 'Adding...' : 'Add to My Papers'}
+                      </button>
                     </div>
                   ))}
                 </div>
