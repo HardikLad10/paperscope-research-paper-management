@@ -201,21 +201,20 @@ app.get("/api/authors/:user_id/insights", async (req, res) => {
 
     // MySQL returns an array of result sets. For this procedure:
     // resultSets[0] -> summary (1 row)
-    // resultSets[1] -> most reviewed paper (0–1 row)
+    // resultSets[1] -> top 5 reviewed papers (0-5 rows, with pdf_url)
     // resultSets[2] -> yearly stats (0+ rows)
     // resultSets[3] -> status breakdown (0+ rows)
     const summaryRows = Array.isArray(resultSets[0]) ? resultSets[0] : [];
-    const mostRows = Array.isArray(resultSets[1]) ? resultSets[1] : [];
+    const topPapersRows = Array.isArray(resultSets[1]) ? resultSets[1] : [];
     const yearlyRows = Array.isArray(resultSets[2]) ? resultSets[2] : [];
     const statusRows = Array.isArray(resultSets[3]) ? resultSets[3] : [];
 
     const summary = summaryRows[0] || null;
-    const mostReviewedPaper = mostRows[0] || null;
 
     return res.json({
       author_id: user_id,
       summary,
-      most_reviewed_paper: mostReviewedPaper,
+      top_reviewed_papers: topPapersRows,
       yearly_stats: yearlyRows,
       status_breakdown: statusRows,
     });

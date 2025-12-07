@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import CreatePaperPage from './pages/CreatePaperPage'
+import AuthorInsightsPage from './pages/AuthorInsightsPage'
 import { MainLayout } from './components/MainLayout'
 import './App.css'
 
@@ -96,6 +97,18 @@ function App() {
             isAuthenticated ? (
               <MainLayout onLogout={handleLogout}>
                 <CreatePaperPage />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/insights"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <AuthorInsightsPage />
               </MainLayout>
             ) : (
               <Navigate to="/login" replace />

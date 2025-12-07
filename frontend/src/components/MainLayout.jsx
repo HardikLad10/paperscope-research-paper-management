@@ -53,6 +53,12 @@ export function MainLayout({ children, onLogout }) {
         >
           New Paper
         </button>
+        <button
+          className={isActive('/insights') ? 'tab active' : 'tab'}
+          onClick={() => navigate('/insights')}
+        >
+          Insights
+        </button>
       </nav>
 
       <main className="app-main">{children}</main>

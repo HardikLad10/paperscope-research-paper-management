@@ -43,7 +43,7 @@ BEGIN
         SET v_avg_reviews = 0;
     END IF;
 
-    -- 4) Most reviewed paper for this author
+    -- 4) Top reviewed papers for this author (still compute for backwards compatibility)
     --    Advanced query: JOIN + GROUP BY + subquery + ORDER BY + LIMIT
     SELECT
         x.paper_id,
@@ -76,13 +76,20 @@ BEGIN
         v_total_reviews AS total_reviews,
         v_avg_reviews  AS avg_reviews_per_paper;
 
-    -- Result set 2: most reviewed paper
-    -- If the author has no papers, this may return NULL values.
+    -- Result set 2: top 5 most reviewed papers (with pdf_url)
     SELECT
-        v_most_paper_id        AS paper_id,
-        v_most_paper_title     AS paper_title,
-        v_most_review_count    AS review_count,
-        v_most_last_review_at  AS last_review_at;
+        p.paper_id,
+        p.paper_title,
+        p.pdf_url,
+        COUNT(r.review_id) AS review_count,
+        MAX(r.review_timestamp) AS last_review_at
+    FROM Papers p
+    JOIN Authorship a ON a.paper_id = p.paper_id
+    LEFT JOIN Reviews r ON r.paper_id = p.paper_id
+    WHERE a.user_id = p_user_id
+    GROUP BY p.paper_id, p.paper_title, p.pdf_url
+    ORDER BY review_count DESC, last_review_at DESC
+    LIMIT 5;
 
     -- Result set 3: year-wise publication & review summary
     -- Uses YEAR(upload_timestamp) and aggregates.
