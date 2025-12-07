@@ -2,7 +2,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState, useEffect } from 'react'
 import Login from './pages/Login'
 import Home from './pages/Home'
+import CreatePaperPage from './pages/CreatePaperPage'
+import AuthorInsightsPage from './pages/AuthorInsightsPage'
+import ReviewPapersPage from './pages/ReviewPapersPage'
 import PaperDetail from './pages/PaperDetail'
+import { MainLayout } from './components/MainLayout'
 import './App.css'
 
 function App() {
@@ -57,7 +61,57 @@ function App() {
           path="/"
           element={
             isAuthenticated ? (
-              <Home onLogout={handleLogout} />
+              <MainLayout onLogout={handleLogout}>
+                <Home defaultTab="search" />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/my-papers"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <Home defaultTab="my-papers" />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/papers/new"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <CreatePaperPage />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/insights"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <AuthorInsightsPage />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/review-papers"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <ReviewPapersPage />
+              </MainLayout>
             ) : (
               <Navigate to="/login" replace />
             )
@@ -67,7 +121,9 @@ function App() {
           path="/papers/:paper_id"
           element={
             isAuthenticated ? (
-              <PaperDetail />
+              <MainLayout onLogout={handleLogout}>
+                <PaperDetail />
+              </MainLayout>
             ) : (
               <Navigate to="/login" replace />
             )
@@ -79,4 +135,3 @@ function App() {
 }
 
 export default App
-

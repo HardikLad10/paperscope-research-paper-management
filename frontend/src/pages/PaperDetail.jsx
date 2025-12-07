@@ -124,7 +124,7 @@ function PaperDetail() {
       {recommendations.length > 0 && (
         <div className="recommendations-section">
           <div className="recommendations-header">
-            <h2>Similar Papers</h2>
+            <h2>Recommended Papers</h2>
             <p className="recommendations-subtitle">AI-powered recommendations based on this paper</p>
           </div>
           {recommendationsLoading ? (

@@ -1,510 +1,535 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { API_BASE_URL } from '../config'
+import PaperModal from '../components/PaperModal'
+import EditPaperModal from '../components/EditPaperModal'
 import './Home.css'
 
-function Home({ onLogout }) {
-  const [activeTab, setActiveTab] = useState('my-papers-in-review')
-  const [searchTerm, setSearchTerm] = useState('')
+function Home({ defaultTab = 'search' }) {
+  const [activeTab, setActiveTab] = useState(defaultTab)
   const [papers, setPapers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  
-  // My Papers in Review states
-  const [myPapersInReview, setMyPapersInReview] = useState([])
-  
-  // Assigned Reviews states
-  const [assignedReviews, setAssignedReviews] = useState([])
-  
-  // Advanced Query 1 states
-  const [query1Year, setQuery1Year] = useState('2024')
-  const [query1UserId, setQuery1UserId] = useState('U005')
-  const [query1Results, setQuery1Results] = useState([])
-  
-  // Advanced Query 2 states
-  const [query2Year, setQuery2Year] = useState('2020')
-  const [query2Results, setQuery2Results] = useState([])
-  
-  // Advanced Query 3 states
-  const [query3StartDate, setQuery3StartDate] = useState('2024-02-15')
-  const [query3EndDate, setQuery3EndDate] = useState('2024-05-15')
-  const [query3Results, setQuery3Results] = useState([])
-  
-  // Advanced Query 4 states
-  const [query4UserId, setQuery4UserId] = useState('U010')
-  const [query4Results, setQuery4Results] = useState([])
+  const [successMessage, setSuccessMessage] = useState('')
+  const [venues, setVenues] = useState([])
+  const [selectedPaperId, setSelectedPaperId] = useState(null)
+  const [editingPaper, setEditingPaper] = useState(null)
+
+  // Filter states for search
+  const [filters, setFilters] = useState({
+    q: '',
+    venue_id: '',
+    status: ''
+  })
+
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 0
+  })
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
-  // Load data when tabs change
+  // Load venues for filter dropdown
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/venues`)
+      .then(res => res.json())
+      .then(data => setVenues(data))
+      .catch(() => setVenues([]))
+  }, [])
+
+  // Update active tab when defaultTab changes
+  useEffect(() => {
+    setActiveTab(defaultTab)
+  }, [defaultTab])
+
+  // Load papers based on active tab
   useEffect(() => {
     if (activeTab === 'all') {
       loadAllPapers()
-    } else if (activeTab === 'my-papers-in-review') {
-      loadMyPapersInReview()
-    } else if (activeTab === 'assigned-reviews') {
-      loadAssignedReviews()
+    } else if (activeTab === 'my-papers') {
+      loadMyPapers()
+    } else if (activeTab === 'search') {
+      // Load all papers by default when search tab is active
+      loadSearchPapers(1)
     }
   }, [activeTab])
-
-  const loadMyPapersInReview = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${user.user_id || user.username}/papers-in-review`)
-      if (!response.ok) throw new Error('Failed to load papers in review')
-      const data = await response.json()
-      setMyPapersInReview(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadAssignedReviews = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${user.user_id || user.username}/assigned-reviews`)
-      if (!response.ok) throw new Error('Failed to load assigned reviews')
-      const data = await response.json()
-      setAssignedReviews(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const loadAllPapers = async () => {
     setLoading(true)
     setError('')
     try {
-      const response = await fetch(`${API_BASE_URL}/api/papers`)
-      if (!response.ok) throw new Error('Failed to lad papers')
+      const response = await fetch(`${API_BASE_URL}/api/papers?page=1&limit=50`)
+      if (!response.ok) throw new Error('Failed to load papers')
       const data = await response.json()
-      setPapers(data)
+      setPapers(data.papers || data)
+      if (data.pagination) {
+        setPagination(data.pagination)
+      }
     } catch (err) {
       setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadSearchPapers = async (page = 1) => {
+    setLoading(true)
+    setError('')
+    try {
+      const params = new URLSearchParams()
+      if (filters.q && filters.q.trim()) params.append('q', filters.q.trim())
+      if (filters.venue_id && filters.venue_id.trim()) params.append('venue_id', filters.venue_id.trim())
+      if (filters.status && filters.status.trim()) params.append('status', filters.status.trim())
+      params.append('page', page.toString())
+      params.append('limit', '50')
+
+      const url = `${API_BASE_URL}/api/papers?${params.toString()}`
+      const response = await fetch(url)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Search failed' }))
+        throw new Error(errorData.error || 'Search failed')
+      }
+      const data = await response.json()
+      setPapers(data.papers || data)
+      if (data.pagination) {
+        setPagination(data.pagination)
+      } else {
+        // Fallback for old response format
+        setPagination({
+          page: 1,
+          limit: 50,
+          total: (data.papers || data).length,
+          totalPages: 1
+        })
+      }
+    } catch (err) {
+      console.error('Error loading papers:', err)
+      setError(err.message || 'Failed to load papers')
+      setPapers([])
     } finally {
       setLoading(false)
     }
   }
 
   const searchPapers = async () => {
-    if (!searchTerm.trim()) {
-      setError('Please enter a search term')
+    // Reset to page 1 when applying filters
+    loadSearchPapers(1)
+  }
+
+  const handleFilterChange = (field, value) => {
+    setFilters(prev => ({ ...prev, [field]: value }))
+  }
+
+  const resetFilters = () => {
+    setFilters({ q: '', venue_id: '', status: '' })
+    setTimeout(() => loadSearchPapers(1), 100)
+  }
+
+  const handlePageChange = (newPage) => {
+    loadSearchPapers(newPage)
+  }
+
+  const handleDeletePaper = async (paperId) => {
+    const raw = localStorage.getItem('user')
+    const currentUser = raw ? JSON.parse(raw) : null
+    const userId = currentUser?.user_id
+
+    if (!userId) {
+      alert('You must be logged in to delete a paper.')
       return
     }
+
+    const ok = window.confirm('Are you sure you want to delete this paper? This cannot be undone.')
+    if (!ok) return
+
+    // Find paper title for success message
+    const paperToDelete = papers.find(p => p.paper_id === paperId)
+    const paperTitle = paperToDelete?.paper_title || 'Paper'
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/papers/${paperId}?user_id=${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to delete paper')
+      }
+
+      // Remove from local state
+      setPapers((prev) => prev.filter((p) => p.paper_id !== paperId))
+      setError('')
+      setSuccessMessage(`Paper "${paperTitle}" has been successfully deleted.`)
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setSuccessMessage('')
+      }, 5000)
+    } catch (err) {
+      console.error(err)
+      setError('Failed to delete paper: ' + (err.message || 'Unknown error'))
+      setSuccessMessage('')
+    }
+  }
+
+  const loadMyPapers = async () => {
+    if (!user?.user_id) {
+      setError('Please log in to view your papers')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/papers?search=${encodeURIComponent(searchTerm)}`
-      )
-      if (!response.ok) throw new Error('Search failed')
+      const params = new URLSearchParams({
+        since: '2018-01-01'
+      })
+      const response = await fetch(`${API_BASE_URL}/api/authors/${encodeURIComponent(user.user_id)}/portfolio?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`Failed to load your papers: ${response.status}`)
+      }
       const data = await response.json()
-      setPapers(data)
+      setPapers(Array.isArray(data) ? data : [])
     } catch (err) {
-      setError(err.message)
+      console.error('Error loading my papers:', err)
+      setError(err.message || 'Failed to load your papers. Please try again later.')
+      setPapers([])
     } finally {
       setLoading(false)
     }
   }
 
-  const runQuery1 = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/advanced/query1?year=${query1Year}&user_id=${query1UserId}`
-      )
-      if (!response.ok) throw new Error('Query failed')
-      const data = await response.json()
-      setQuery1Results(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  const runQuery2 = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/advanced/query2?year=${query2Year}`
-      )
-      if (!response.ok) throw new Error('Query failed')
-      const data = await response.json()
-      setQuery2Results(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const runQuery3 = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/advanced/query3?start_date=${query3StartDate}&end_date=${query3EndDate}`
-      )
-      if (!response.ok) throw new Error('Query failed')
-      const data = await response.json()
-      setQuery3Results(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const runQuery4 = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/advanced/query4?user_id=${query4UserId}`
-      )
-      if (!response.ok) throw new Error('Query failed')
-      const data = await response.json()
-      setQuery4Results(data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
-    <div className="home-container">
-      <header className="home-header">
-        <div className="header-content">
-          <h1>Papers Management System</h1>
-          <div className="header-actions">
-            <span className="user-info">Welcome, {user.user_name || user.username || 'User'}</span>
-            <button onClick={onLogout} className="logout-button">
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="content-panel">
+      {error && <div className="error-message">{error}</div>}
+      {successMessage && <div className="success-message">{successMessage}</div>}
 
-      <div className="home-content">
-        <nav className="tabs">
-          <button
-            className={activeTab === 'my-papers-in-review' ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab('my-papers-in-review')}
-          >
-            My Papers in Review
-          </button>
-          <button
-            className={activeTab === 'assigned-reviews' ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab('assigned-reviews')}
-          >
-            Assigned Reviews
-          </button>
-          <button
-            className={activeTab === 'search' ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab('search')}
-          >
-            Search Papers
-          </button>
-          <button
-            className={activeTab === 'all' ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab('all')}
-          >
-            All Papers
-          </button>
-          <button
-            className={activeTab === 'query1' ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab('query1')}
-          >
-            Query 1: User Papers
-          </button>
-          <button
-            className={activeTab === 'query2' ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab('query2')}
-          >
-            Query 2: Venues by Year
-          </button>
-          <button
-            className={activeTab === 'query3' ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab('query3')}
-          >
-            Query 3: Top Reviewers
-          </button>
-          <button
-            className={activeTab === 'query4' ? 'tab active' : 'tab'}
-            onClick={() => setActiveTab('query4')}
-          >
-            Query 4: User Paper Reviews
-          </button>
-        </nav>
-
-        <div className="content-panel">
-          {error && <div className="error-message">{error}</div>}
-
-          {activeTab === 'my-papers-in-review' && (
-            <div className="my-papers-section">
-              <div className="section-header">
-                <h2>My Papers in Review</h2>
-                <button onClick={loadMyPapersInReview} className="refresh-button">
-                  Refresh
-                </button>
-              </div>
-              <p className="section-description">
-                Papers you have authored that are currently under review
-              </p>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <PapersList papers={myPapersInReview} showReviewCount={true} />
-              )}
+      {activeTab === 'search' && (
+        <div className="search-section">
+          <div className="filter-bar">
+            <div className="filter-group filter-search">
+              <label htmlFor="search-input">Search</label>
+              <input
+                id="search-input"
+                type="text"
+                value={filters.q}
+                onChange={(e) => handleFilterChange('q', e.target.value)}
+                placeholder="Search by paper title or abstract..."
+                onKeyPress={(e) => e.key === 'Enter' && searchPapers()}
+              />
             </div>
-          )}
 
-          {activeTab === 'assigned-reviews' && (
-            <div className="assigned-reviews-section">
-              <div className="section-header">
-                <h2>Assigned Reviews</h2>
-                <button onClick={loadAssignedReviews} className="refresh-button">
-                  Refresh
-                </button>
-              </div>
-              <p className="section-description">
-                Papers assigned to you for review
-              </p>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <PapersList papers={assignedReviews} showReviewCount={true} showReviewedStatus={true} />
-              )}
+            <div className="filter-group">
+              <label htmlFor="venue-filter">Venue</label>
+              <select
+                id="venue-filter"
+                value={filters.venue_id}
+                onChange={(e) => handleFilterChange('venue_id', e.target.value)}
+              >
+                <option value="">All venues</option>
+                {venues.map(v => (
+                  <option key={v.venue_id} value={v.venue_id}>
+                    {v.venue_name} {v.year ? `(${v.year})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
 
-          {activeTab === 'search' && (
-            <div className="search-section">
-              <div className="search-box">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search papers by title or abstract..."
-                  onKeyPress={(e) => e.key === 'Enter' && searchPapers()}
-                />
-                <button onClick={searchPapers} className="search-button">
-                  Search
-                </button>
-              </div>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <PapersList papers={papers} />
-              )}
+            <div className="filter-group">
+              <label htmlFor="status-filter">Status</label>
+              <select
+                id="status-filter"
+                value={filters.status}
+                onChange={(e) => handleFilterChange('status', e.target.value)}
+              >
+                <option value="">All statuses</option>
+                <option value="Draft">Draft</option>
+                <option value="Under Review">Under Review</option>
+                <option value="Published">Published</option>
+              </select>
             </div>
-          )}
 
-          {activeTab === 'all' && (
-            <div className="all-papers-section">
-              <button onClick={loadAllPapers} className="refresh-button">
-                Refresh Papers
+            <div className="filter-actions">
+              <button onClick={searchPapers} className="btn-apply">
+                Search / Apply Filters
               </button>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <PapersList papers={papers} />
-              )}
+              <button onClick={resetFilters} className="btn-reset">
+                Reset
+              </button>
             </div>
-          )}
-
-          {activeTab === 'query1' && (
-            <div className="query-section">
-              <div className="query-controls">
-                <div className="control-group">
-                  <label>Year:</label>
-                  <input
-                    type="number"
-                    value={query1Year}
-                    onChange={(e) => setQuery1Year(e.target.value)}
-                    placeholder="2024"
-                  />
-                </div>
-                <div className="control-group">
-                  <label>User ID:</label>
-                  <input
-                    type="text"
-                    value={query1UserId}
-                    onChange={(e) => setQuery1UserId(e.target.value)}
-                    placeholder="U005"
-                  />
-                </div>
-                <button onClick={runQuery1} className="query-button">
-                  Run Query
-                </button>
-              </div>
-              <p className="query-description">
-                Get papers authored by a user, filtered by year, sorted by upload timestamp and review count (limit 15)
-              </p>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <QueryResults data={query1Results} />
+          </div>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : (
+            <>
+              <PapersList papers={papers} onPaperClick={setSelectedPaperId} />
+              {pagination.totalPages > 1 && (
+                <PaginationControls
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                  total={pagination.total}
+                  limit={pagination.limit}
+                  onPageChange={handlePageChange}
+                />
               )}
-            </div>
-          )}
-
-          {activeTab === 'query2' && (
-            <div className="query-section">
-              <div className="query-controls">
-                <div className="control-group">
-                  <label>Year:</label>
-                  <input
-                    type="number"
-                    value={query2Year}
-                    onChange={(e) => setQuery2Year(e.target.value)}
-                    placeholder="2020"
-                  />
-                </div>
-                <button onClick={runQuery2} className="query-button">
-                  Run Query
-                </button>
-              </div>
-              <p className="query-description">
-                Get venues with published papers, filtered by year, sorted by year and total papers (limit 15)
-              </p>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <QueryResults data={query2Results} />
-              )}
-            </div>
-          )}
-
-          {activeTab === 'query3' && (
-            <div className="query-section">
-              <div className="query-controls">
-                <div className="control-group">
-                  <label>Start Date:</label>
-                  <input
-                    type="date"
-                    value={query3StartDate}
-                    onChange={(e) => setQuery3StartDate(e.target.value)}
-                  />
-                </div>
-                <div className="control-group">
-                  <label>End Date:</label>
-                  <input
-                    type="date"
-                    value={query3EndDate}
-                    onChange={(e) => setQuery3EndDate(e.target.value)}
-                  />
-                </div>
-                <button onClick={runQuery3} className="query-button">
-                  Run Query
-                </button>
-              </div>
-              <p className="query-description">
-                Get top reviewers (users who are reviewers) with review counts in date range, sorted by total reviews (limit 15)
-              </p>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <QueryResults data={query3Results} />
-              )}
-            </div>
-          )}
-
-          {activeTab === 'query4' && (
-            <div className="query-section">
-              <div className="query-controls">
-                <div className="control-group">
-                  <label>User ID:</label>
-                  <input
-                    type="text"
-                    value={query4UserId}
-                    onChange={(e) => setQuery4UserId(e.target.value)}
-                    placeholder="U010"
-                  />
-                </div>
-                <button onClick={runQuery4} className="query-button">
-                  Run Query
-                </button>
-              </div>
-              <p className="query-description">
-                Get papers authored by a user with review counts, sorted by review count and last review date (limit 15)
-              </p>
-              {loading ? (
-                <div className="loading">Loading...</div>
-              ) : (
-                <QueryResults data={query4Results} />
-              )}
-            </div>
+            </>
           )}
         </div>
-      </div>
+      )}
+
+      {activeTab === 'all' && (
+        <div className="all-papers-section">
+          <button onClick={loadAllPapers} className="refresh-button">
+            Refresh Papers
+          </button>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : (
+            <PapersList papers={papers} onPaperClick={setSelectedPaperId} />
+          )}
+        </div>
+      )}
+
+      {activeTab === 'my-papers' && (
+        <div className="my-papers-section">
+          <button onClick={loadMyPapers} className="refresh-button">
+            Refresh My Papers
+          </button>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : (
+            <MyPapersList
+              papers={papers}
+              onDeletePaper={handleDeletePaper}
+              onPaperClick={setSelectedPaperId}
+              onEditPaper={(paper) => setEditingPaper(paper)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Paper Modal */}
+      {selectedPaperId && (
+        <PaperModal
+          paper_id={selectedPaperId}
+          onClose={() => {
+            setSelectedPaperId(null)
+            // Refresh My Papers if we're on that tab
+            if (activeTab === 'my-papers') {
+              loadMyPapers()
+            }
+          }}
+          onSelectRecommendation={(paperId) => setSelectedPaperId(paperId)}
+        />
+      )}
+
+      {/* Edit Paper Modal */}
+      {editingPaper && (
+        <EditPaperModal
+          paper={editingPaper}
+          onClose={() => setEditingPaper(null)}
+          onSave={() => {
+            setEditingPaper(null)
+            loadMyPapers()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function PapersList({ papers, showReviewCount = false, showReviewedStatus = false }) {
+function PapersList({ papers, onPaperClick }) {
   if (papers.length === 0) {
     return <div className="empty-state">No papers found</div>
   }
 
   return (
-    <div className="papers-grid">
+    <div className="search-papers-grid">
       {papers.map((paper) => (
-        <Link
+        <div
           key={paper.paper_id}
-          to={`/papers/${encodeURIComponent(paper.paper_id)}`}
-          className="paper-card-link"
-          aria-label={`Open paper ${paper.paper_title}`}
+          className="paper-card"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (onPaperClick) {
+              console.log('[PapersList] Clicked paper:', paper.paper_id)
+              onPaperClick(paper.paper_id)
+            }
+          }}
         >
-          <div className="paper-card">
+          <div className="paper-card-header">
             <h3 className="paper-title">{paper.paper_title}</h3>
-            <div className="paper-meta">
-              {paper.venue_name && (
-                <span className="badge badge-venue">
-                  {paper.venue_name} {paper.year || ''}
-                </span>
-              )}
-              <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
-                {paper.status || 'Unknown'}
-              </span>
-              {showReviewCount && paper.review_count !== undefined && (
-                <span className="badge badge-review">
-                  {paper.review_count} {paper.review_count === 1 ? 'Review' : 'Reviews'}
-                </span>
-              )}
-              {showReviewedStatus && paper.has_reviewed && (
-                <span className="badge badge-reviewed">
-                  Reviewed
-                </span>
-              )}
-            </div>
-            <p className="paper-abstract">
-              {paper.abstract ? (paper.abstract.length > 150 ? paper.abstract.substring(0, 150) + '...' : paper.abstract) : 'No abstract available'}
-            </p>
-            <div className="paper-footer">
-              <div className="paper-date">
-                {paper.upload_timestamp ? new Date(paper.upload_timestamp).toLocaleDateString() : 'No date'}
-              </div>
-              {paper.last_review_at && (
-                <div className="paper-last-review">
-                  Last review: {new Date(paper.last_review_at).toLocaleDateString()}
-                </div>
-              )}
-            </div>
           </div>
-        </Link>
+
+          <div className="paper-card-badges">
+            {paper.venue_name && (
+              <span className="badge badge-venue">
+                {paper.venue_name} {paper.year || ''}
+              </span>
+            )}
+            <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
+              {paper.status || 'Unknown'}
+            </span>
+            {paper.review_count !== undefined && (
+              <span className="badge badge-reviews">
+                {paper.review_count} {paper.review_count === 1 ? 'review' : 'reviews'}
+              </span>
+            )}
+          </div>
+
+          <div className="paper-card-abstract">
+            {paper.abstract
+              ? (paper.abstract.length > 120 ? paper.abstract.substring(0, 120) + '...' : paper.abstract)
+              : 'No abstract available'}
+          </div>
+
+          <div className="paper-card-footer">
+            <span className="paper-date">
+              {new Date(paper.upload_timestamp).toLocaleDateString()}
+            </span>
+            {paper.pdf_url && (
+              <button
+                className="btn btn-secondary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.open(paper.pdf_url, '_blank')
+                }}
+              >
+                View PDF
+              </button>
+            )}
+          </div>
+        </div>
       ))}
     </div>
+  )
+}
+
+function MyPapersList({ papers, onDeletePaper, onPaperClick, onEditPaper }) {
+  const [statusFilter, setStatusFilter] = useState('ALL')
+
+  if (papers.length === 0) {
+    return <div className="empty-state">No papers found. You haven't authored any papers yet.</div>
+  }
+
+  // Filter papers based on status
+  const filteredPapers = papers.filter((p) => {
+    if (statusFilter === 'ALL') return true
+    if (statusFilter === 'AI_DRAFT') return p.status === 'AI_DRAFT'
+    if (statusFilter === 'UNDER_REVIEW') return p.status === 'Under Review'
+    return true
+  })
+
+  return (
+    <>
+      <div className="my-papers-filter">
+        <button
+          className={`filter-btn ${statusFilter === 'ALL' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('ALL')}
+        >
+          All ({papers.length})
+        </button>
+        <button
+          className={`filter-btn ${statusFilter === 'AI_DRAFT' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('AI_DRAFT')}
+        >
+          AI Drafts ({papers.filter(p => p.status === 'AI_DRAFT').length})
+        </button>
+        <button
+          className={`filter-btn ${statusFilter === 'UNDER_REVIEW' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('UNDER_REVIEW')}
+        >
+          Under Review ({papers.filter(p => p.status === 'Under Review').length})
+        </button>
+      </div>
+
+      {filteredPapers.length === 0 && (
+        <div className="empty-state">No papers match the selected filter.</div>
+      )}
+
+      <div className="my-papers-grid">
+        {filteredPapers.map((paper) => (
+          <div key={paper.paper_id} className="paper-card" onClick={() => onPaperClick && onPaperClick(paper.paper_id)}>
+            <div className="paper-card-header">
+              <h3 className="paper-title">{paper.paper_title}</h3>
+            </div>
+
+            <div className="paper-card-badges">
+              {paper.project_title && (
+                <span className="badge badge-project">{paper.project_title}</span>
+              )}
+              <span className="badge badge-type">{paper.status || 'Authored Paper'}</span>
+              {paper.review_count !== undefined && (
+                <span className="badge badge-reviews">
+                  {paper.review_count} {paper.review_count === 1 ? 'review' : 'reviews'}
+                </span>
+              )}
+              {paper.status === 'AI_DRAFT' && (
+                <span className="badge badge-ai">AI Draft</span>
+              )}
+            </div>
+
+            <div className="paper-card-meta">
+              <span>
+                {paper.coauthor_count > 0
+                  ? `${paper.coauthor_count} co-author${paper.coauthor_count === 1 ? '' : 's'}`
+                  : 'Solo author'}
+              </span>
+              <span>
+                {paper.upload_timestamp
+                  ? new Date(paper.upload_timestamp).toLocaleDateString()
+                  : 'Unknown date'}
+              </span>
+            </div>
+
+            {paper.coauthors && paper.coauthors !== 'No co-authors' && (
+              <div className="paper-card-coauthors">
+                <strong>Co-authors:</strong> {paper.coauthors}
+              </div>
+            )}
+
+            <div className="paper-card-actions">
+              {paper.pdf_url && paper.pdf_url !== 'AI_DRAFT_NO_PDF' && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(paper.pdf_url, '_blank');
+                  }}
+                >
+                  View PDF
+                </button>
+              )}
+              <button
+                className="btn btn-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onEditPaper) onEditPaper(paper);
+                }}
+              >
+                Edit
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeletePaper(paper.paper_id);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
 
@@ -537,5 +562,84 @@ function QueryResults({ data }) {
   )
 }
 
+function PaginationControls({ currentPage, totalPages, total, limit, onPageChange }) {
+  const startItem = (currentPage - 1) * limit + 1
+  const endItem = Math.min(currentPage * limit, total)
+
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisible = 5
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i)
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 5; i++) {
+          pages.push(i)
+        }
+      } else if (currentPage >= totalPages - 2) {
+        for (let i = totalPages - 4; i <= totalPages; i++) {
+          pages.push(i)
+        }
+      } else {
+        for (let i = currentPage - 2; i <= currentPage + 2; i++) {
+          pages.push(i)
+        }
+      }
+    }
+    return pages
+  }
+
+  return (
+    <div className="pagination-controls">
+      <div className="pagination-info">
+        Showing {startItem}-{endItem} of {total} papers
+      </div>
+      <div className="pagination-buttons">
+        <button
+          className="pagination-btn"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+        >
+          First
+        </button>
+        <button
+          className="pagination-btn"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+        >
+          Previous
+        </button>
+        {getPageNumbers().map((page) => (
+          <button
+            key={page}
+            className={`pagination-btn ${currentPage === page ? 'active' : ''}`}
+            onClick={() => onPageChange(page)}
+          >
+            {page}
+          </button>
+        ))}
+        <button
+          className="pagination-btn"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+        >
+          Next
+        </button>
+        <button
+          className="pagination-btn"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+        >
+          Last
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default Home
+
 

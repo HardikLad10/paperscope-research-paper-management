@@ -188,7 +188,7 @@ app.get("/api/authors/:user_id/portfolio", async (req, res) => {
  */
 app.get("/api/reviewers/top", async (req, res) => {
   const from = String(req.query.from || "2024-01-01");
-  const to   = String(req.query.to   || "2025-12-31");
+  const to = String(req.query.to || "2025-12-31");
   try {
     const [rows] = await pool.execute(
       `
@@ -219,7 +219,7 @@ app.get("/api/reviewers/top", async (req, res) => {
 app.get("/api/advanced/query1", async (req, res) => {
   const year = String(req.query.year || "2024");
   const user_id = String(req.query.user_id || "");
-  
+
   if (!user_id) {
     return res.status(400).json({ error: "user_id is required" });
   }
@@ -327,7 +327,7 @@ app.get("/api/advanced/query3", async (req, res) => {
  */
 app.get("/api/advanced/query4", async (req, res) => {
   const user_id = String(req.query.user_id || "");
-  
+
   if (!user_id) {
     return res.status(400).json({ error: "user_id is required" });
   }
@@ -366,7 +366,7 @@ app.get("/api/advanced/query4", async (req, res) => {
  */
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body;
-  
+
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required" });
   }
@@ -460,18 +460,18 @@ app.get("/api/users/:user_id/assigned-reviews", async (req, res) => {
       `SELECT is_reviewer FROM Users WHERE user_id = ?`,
       [user_id]
     );
-    
+
     if (userCheck.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
-    
+
     // Check if user is a reviewer (handle both boolean and TINYINT(1) formats)
     const isReviewer = userCheck[0].is_reviewer === 1 || userCheck[0].is_reviewer === true;
     if (!isReviewer) {
       // User is not a reviewer, return empty array
       return res.json([]);
     }
-    
+
     // Get papers under review that user didn't author
     const [rows] = await pool.execute(
       `
@@ -517,8 +517,8 @@ app.get("/api/papers/:paper_id/recommendations", async (req, res) => {
   const { paper_id } = req.params;
 
   if (!isVertexAIConfigured()) {
-    return res.status(503).json({ 
-      error: "Recommendation service not available. GCP_PROJECT_ID not set." 
+    return res.status(503).json({
+      error: "Recommendation service not available. GCP_PROJECT_ID not set."
     });
   }
 
@@ -547,7 +547,7 @@ app.get("/api/papers/:paper_id/recommendations", async (req, res) => {
     }
 
     // Prepare context for LLM
-    const papersContext = allPapers.map((p, idx) => 
+    const papersContext = allPapers.map((p, idx) =>
       `${idx + 1}. Paper ID: ${p.paper_id}\n   Title: ${p.paper_title}\n   Abstract: ${p.abstract || 'No abstract available'}`
     ).join('\n\n');
 
@@ -574,7 +574,7 @@ Return ONLY the JSON array, no other text.`;
     const modelName = 'gemini-2.5-flash'; // Use available model from your project
     const genAIEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
     console.log(`[RECOMMENDATIONS] Using Generative AI API with model: ${modelName}`);
-    
+
     // Get API key from service account for Generative AI API
     // The Generative AI API can use an API key or OAuth token
     let apiKey;
@@ -583,18 +583,18 @@ Return ONLY the JSON array, no other text.`;
       const authOptions = {
         scopes: ['https://www.googleapis.com/auth/generative-language'],
       };
-      
+
       if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
         authOptions.keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
       }
-      
+
       const auth = new GoogleAuth(authOptions);
       const client = await auth.getClient();
       const tokenResponse = await client.getAccessToken();
       apiKey = tokenResponse.token; // Use as bearer token
     } catch (authError) {
       console.error(`[RECOMMENDATIONS] Authentication error:`, authError);
-      return res.status(503).json({ 
+      return res.status(503).json({
         error: "Failed to authenticate with GCP.",
         details: authError.message
       });
@@ -630,10 +630,10 @@ Return ONLY the JSON array, no other text.`;
 
     const genAIResponse = await response.json();
     // Extract text from Generative AI API response
-    const text = genAIResponse.candidates?.[0]?.content?.parts?.[0]?.text || 
-                 genAIResponse.candidates?.[0]?.text || 
-                 genAIResponse.text ||
-                 '';
+    const text = genAIResponse.candidates?.[0]?.content?.parts?.[0]?.text ||
+      genAIResponse.candidates?.[0]?.text ||
+      genAIResponse.text ||
+      '';
     const trimmedText = String(text).trim();
     console.log(`[RECOMMENDATIONS] LLM response length: ${trimmedText.length} chars`);
 
@@ -662,7 +662,7 @@ Return ONLY the JSON array, no other text.`;
     }
 
     // Limit to 10 and ensure they're valid paper IDs
-    recommendedPaperIds = recommendedPaperIds.slice(0, 10).filter(id => 
+    recommendedPaperIds = recommendedPaperIds.slice(0, 10).filter(id =>
       allPapers.some(p => p.paper_id === id)
     );
 
@@ -696,6 +696,78 @@ Return ONLY the JSON array, no other text.`;
     return res.json(recommendedPapers);
   } catch (e) {
     return res.status(500).json({ error: String(e) });
+  }
+});
+
+/**
+ * Create AI Draft Paper (uses stored procedure with transaction)
+ * POST /api/ai-drafts
+ * Body: { source_paper_id, paper_id, title, abstract, user_id }
+ */
+app.post("/api/ai-drafts", async (req, res) => {
+  const { source_paper_id, paper_id, title, abstract, user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
+  if (!source_paper_id || !paper_id || !title) {
+    return res.status(400).json({ error: 'Missing required fields: source_paper_id, paper_id, title' });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // Call the stored procedure
+    await conn.query(
+      'CALL sp_create_ai_draft_paper(?, ?, ?, ?, ?)',
+      [user_id, source_paper_id, paper_id, title, abstract || '']
+    );
+
+    return res.status(201).json({ message: 'AI draft created', paper_id });
+  } catch (err) {
+    console.error('[AI-DRAFT] Error:', err);
+    return res.status(500).json({
+      error: err.message || 'Failed to create AI draft',
+      message: err.message || 'Failed to create AI draft'
+    });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+/**
+ * Update a paper (used for editing AI drafts and promoting to Under Review)
+ * PUT /api/papers/:paper_id
+ * Body: { paper_title, abstract, pdf_url, status, venue_id }
+ */
+app.put("/api/papers/:paper_id", async (req, res) => {
+  const { paper_id } = req.params;
+  const { paper_title, abstract, pdf_url, status, venue_id } = req.body;
+
+  if (!paper_title) {
+    return res.status(400).json({ message: 'paper_title is required' });
+  }
+
+  try {
+    await pool.execute(
+      `UPDATE Papers
+       SET paper_title = ?, abstract = ?, pdf_url = ?, status = ?, venue_id = ?
+       WHERE paper_id = ?`,
+      [paper_title, abstract, pdf_url, status, venue_id, paper_id]
+    );
+
+    return res.json({ message: 'Paper updated successfully' });
+  } catch (err) {
+    console.error('[PUT /api/papers/:paper_id] Error:', err);
+
+    // Surface trigger error messages (e.g., "AI paper must have a real PDF URL...")
+    if (err.sqlMessage) {
+      return res.status(400).json({ message: err.sqlMessage });
+    }
+
+    return res.status(400).json({ message: err.message || 'Update failed' });
   }
 });
 
