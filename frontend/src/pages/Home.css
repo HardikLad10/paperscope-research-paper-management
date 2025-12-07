@@ -224,6 +224,37 @@
   font-size: 0.9em;
 }
 
+.paper-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.view-pdf-button {
+  padding: 6px 16px;
+  background: #667eea;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.view-pdf-button:hover {
+  background: #5568d3;
+  transform: translateY(-1px);
+}
+
+.pdf-unavailable {
+  color: #a0aec0;
+  font-size: 0.85em;
+  font-style: italic;
+}
+
 .query-section {
   margin-top: 20px;
 }

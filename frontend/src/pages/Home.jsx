@@ -289,8 +289,22 @@ function PapersList({ papers }) {
           <p className="paper-abstract">
             {paper.abstract ? (paper.abstract.length > 150 ? paper.abstract.substring(0, 150) + '...' : paper.abstract) : 'No abstract available'}
           </p>
-          <div className="paper-date">
-            {new Date(paper.upload_timestamp).toLocaleDateString()}
+          <div className="paper-footer">
+            <div className="paper-date">
+              {new Date(paper.upload_timestamp).toLocaleDateString()}
+            </div>
+            {paper.pdf_url ? (
+              <a
+                href={paper.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="view-pdf-button"
+              >
+                View PDF
+              </a>
+            ) : (
+              <span className="pdf-unavailable">PDF not available</span>
+            )}
           </div>
         </div>
       ))}
@@ -327,10 +341,24 @@ function MyPapersList({ papers }) {
               </span>
             )}
           </div>
-          <div className="paper-date">
-            <strong>Uploaded:</strong> {paper.upload_timestamp 
-              ? new Date(paper.upload_timestamp).toLocaleDateString() 
-              : 'Unknown date'}
+          <div className="paper-footer">
+            <div className="paper-date">
+              <strong>Uploaded:</strong> {paper.upload_timestamp 
+                ? new Date(paper.upload_timestamp).toLocaleDateString() 
+                : 'Unknown date'}
+            </div>
+            {paper.pdf_url ? (
+              <a
+                href={paper.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="view-pdf-button"
+              >
+                View PDF
+              </a>
+            ) : (
+              <span className="pdf-unavailable">PDF not available</span>
+            )}
           </div>
         </div>
       ))}

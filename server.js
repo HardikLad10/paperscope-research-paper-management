@@ -217,14 +217,14 @@ app.get("/api/authors/:user_id/portfolio", async (req, res) => {
       `
       SELECT
         pr.project_id, pr.project_title,
-        p.paper_id, p.paper_title, p.upload_timestamp,
+        p.paper_id, p.paper_title, p.pdf_url, p.upload_timestamp,
         COUNT(r.review_id) AS review_count
       FROM Authorship a
       JOIN Papers p   ON p.paper_id = a.paper_id
       LEFT JOIN Projects pr ON pr.project_id = p.project_id
       LEFT JOIN Reviews r ON r.paper_id = p.paper_id
       WHERE a.user_id = ? AND (p.upload_timestamp IS NULL OR p.upload_timestamp >= ?)
-      GROUP BY pr.project_id, pr.project_title, p.paper_id, p.paper_title, p.upload_timestamp
+      GROUP BY pr.project_id, pr.project_title, p.paper_id, p.paper_title, p.pdf_url, p.upload_timestamp
       ORDER BY p.upload_timestamp DESC, review_count DESC
       LIMIT 50
       `,
@@ -458,6 +458,7 @@ app.get("/api/reviewable-papers", async (req, res) => {
       SELECT
         p.paper_id,
         p.paper_title,
+        p.pdf_url,
         v.venue_name,
         p.status,
         COUNT(r.review_id) AS review_count
@@ -466,7 +467,7 @@ app.get("/api/reviewable-papers", async (req, res) => {
       LEFT JOIN Reviews r ON r.paper_id = p.paper_id
       WHERE ${whereClause}
       GROUP BY
-        p.paper_id, p.paper_title, v.venue_name, p.status
+        p.paper_id, p.paper_title, p.pdf_url, v.venue_name, p.status
       ORDER BY p.upload_timestamp DESC
       `,
       params

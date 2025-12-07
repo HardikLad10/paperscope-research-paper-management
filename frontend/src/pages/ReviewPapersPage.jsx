@@ -266,6 +266,20 @@ export default function ReviewPapersPage() {
               {selectedPaper.abstract && (
                 <p><strong>Abstract:</strong> {selectedPaper.abstract}</p>
               )}
+              <div className="pdf-action">
+                {selectedPaper.pdf_url ? (
+                  <a
+                    href={selectedPaper.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="open-pdf-button"
+                  >
+                    Open PDF
+                  </a>
+                ) : (
+                  <p className="pdf-unavailable-text">PDF URL not available for this paper.</p>
+                )}
+              </div>
             </div>
           </div>
 

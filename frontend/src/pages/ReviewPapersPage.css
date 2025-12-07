@@ -237,6 +237,38 @@
   font-weight: 600;
 }
 
+.pdf-action {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.open-pdf-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 0.95em;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.open-pdf-button:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.pdf-unavailable-text {
+  color: #a0aec0;
+  font-size: 0.85em;
+  font-style: italic;
+  margin: 0;
+}
+
 .reviews-section h3 {
   color: #2d3748;
   font-size: 1.3em;
