@@ -36,22 +36,10 @@ export function MainLayout({ children, onLogout }) {
           Search Papers
         </button>
         <button
-          className={isActive('/papers') && !isActive('/papers/new') ? 'tab active' : 'tab'}
-          onClick={() => navigate('/papers')}
-        >
-          All Papers
-        </button>
-        <button
           className={isActive('/my-papers') ? 'tab active' : 'tab'}
           onClick={() => navigate('/my-papers')}
         >
           My Papers
-        </button>
-        <button
-          className={isActive('/papers/new') ? 'tab active' : 'tab'}
-          onClick={() => navigate('/papers/new')}
-        >
-          New Paper
         </button>
         <button
           className={isActive('/insights') ? 'tab active' : 'tab'}
@@ -59,6 +47,20 @@ export function MainLayout({ children, onLogout }) {
         >
           Insights
         </button>
+        <button
+          className={isActive('/papers/new') ? 'tab active' : 'tab'}
+          onClick={() => navigate('/papers/new')}
+        >
+          New Paper
+        </button>
+        {(user.is_reviewer === 1 || user.is_reviewer === '1') && (
+          <button
+            className={isActive('/review-papers') ? 'tab active' : 'tab'}
+            onClick={() => navigate('/review-papers')}
+          >
+            Review Papers
+          </button>
+        )}
       </nav>
 
       <main className="app-main">{children}</main>

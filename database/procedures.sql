@@ -36,6 +36,7 @@ BEGIN
     JOIN Reviews r ON r.paper_id = a.paper_id
     WHERE a.user_id = p_user_id;
 
+    -------------------------------------------------------------------
     -- 3) Compute average reviews per paper (control structure)
     IF v_total_papers > 0 THEN
         SET v_avg_reviews = v_total_reviews / v_total_papers;
