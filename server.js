@@ -447,18 +447,21 @@ app.post("/api/papers/:paper_id/reviews", async (req, res) => {
 
 /**
  * R1 — Get reviewable papers (papers NOT authored by current user, NOT already reviewed)
- * GET /api/reviewable-papers?user_id=U001&venue_id=V001&q=keyword
+ * Get papers that a user can review (not authored by them, not already reviewed)
+ * GET /api/reviewable-papers?user_id=U001&venue_id=V001&q=keyword&page=1&limit=20
  * 
- * Returns only papers the reviewer CAN review:
- * - Status is ALWAYS 'Under Review' (locked, not filterable)
- * - Excludes papers where user is an author
- * - Excludes papers the user has already reviewed
- * - Optional filters: venue_id, q (search keyword)
+ * Query params:
+ *   - user_id (required): exclude papers authored by this user
+ *   - venue_id (optional): filter by venue
+ *   - q (optional): search in title/abstract
+ *   - page (optional): page number (default: 1)
+ *   - limit (optional): papers per page (default: 20, max: 100)
  */
 app.get("/api/reviewable-papers", async (req, res) => {
-  const user_id = String(req.query.user_id || "");
-  const venue_id = String(req.query.venue_id || "").trim();
-  const q = String(req.query.q || "").trim();
+  const { user_id, venue_id, q } = req.query;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+  const offset = (page - 1) * limit;
 
   if (!user_id) {
     return res.status(400).json({ error: "user_id is required" });
@@ -466,49 +469,85 @@ app.get("/api/reviewable-papers", async (req, res) => {
 
   try {
     // Build WHERE conditions
-    const whereConditions = [
-      "p.status = 'Under Review'",  // Always enforce Under Review status
-      "NOT EXISTS (SELECT 1 FROM Authorship a WHERE a.paper_id = p.paper_id AND a.user_id = ?)",
-      "NOT EXISTS (SELECT 1 FROM Reviews rr WHERE rr.paper_id = p.paper_id AND rr.user_id = ?)"
-    ];
-    const params = [user_id, user_id];
+    const whereConditions = ["p.status = 'Under Review'"];
+    const params = [];
 
-    // Optional venue filter
-    if (venue_id) {
+    // Exclude papers authored by user_id
+    whereConditions.push(`
+      NOT EXISTS (
+        SELECT 1 FROM Authorship a
+        WHERE a.paper_id = p.paper_id
+          AND a.user_id = ?
+      )
+    `);
+    params.push(user_id);
+
+    // Exclude papers already reviewed by user_id
+    whereConditions.push(`
+      NOT EXISTS (
+        SELECT 1 FROM Reviews r
+        WHERE r.paper_id = p.paper_id
+          AND r.user_id = ?
+      )
+    `);
+    params.push(user_id);
+
+    // Venue filter
+    if (venue_id && venue_id.trim()) {
       whereConditions.push("p.venue_id = ?");
-      params.push(venue_id);
+      params.push(venue_id.trim());
     }
 
-    // Optional search filter
-    if (q) {
-      const like = `%${q}%`;
+    // Search filter
+    if (q && q.trim()) {
+      const searchPattern = `%${q.trim()}%`;
       whereConditions.push("(p.paper_title LIKE ? OR p.abstract LIKE ?)");
-      params.push(like, like);
+      params.push(searchPattern, searchPattern);
     }
 
     const whereClause = whereConditions.join(" AND ");
 
-    const [rows] = await pool.execute(
-      `
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM Papers p
+      WHERE ${whereClause}
+    `;
+    const [countRows] = await pool.execute(countQuery, params);
+    const total = countRows[0].total;
+
+    // Get paginated results
+    const query = `
       SELECT
         p.paper_id,
         p.paper_title,
+        p.abstract,
         p.pdf_url,
-        v.venue_name,
+        p.upload_timestamp,
         p.status,
-        COUNT(r.review_id) AS review_count
+        v.venue_name,
+        v.year,
+        COUNT(DISTINCT r.review_id) AS review_count
       FROM Papers p
-      JOIN Venues v ON v.venue_id = p.venue_id
-      LEFT JOIN Reviews r ON r.paper_id = p.paper_id
+      LEFT JOIN Venues v ON p.venue_id = v.venue_id
+      LEFT JOIN Reviews r ON p.paper_id = r.paper_id
       WHERE ${whereClause}
-      GROUP BY
-        p.paper_id, p.paper_title, p.pdf_url, v.venue_name, p.status
+      GROUP BY p.paper_id, p.paper_title, p.abstract, p.pdf_url, p.upload_timestamp, p.status, v.venue_name, v.year
       ORDER BY p.upload_timestamp DESC
-      `,
-      params
-    );
+      LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+    `;
 
-    return res.json(rows);
+    const [rows] = await pool.execute(query, params);
+
+    return res.json({
+      papers: rows,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: parseInt(total),
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (e) {
     console.error("Error in /api/reviewable-papers:", e);
     return res.status(500).json({ error: String(e) });
