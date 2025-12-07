@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { API_BASE_URL } from '../config'
 import './Home.css'
 
 function Home({ onLogout }) {
-  const [activeTab, setActiveTab] = useState('search')
+  const [activeTab, setActiveTab] = useState('my-papers-in-review')
   const [searchTerm, setSearchTerm] = useState('')
   const [papers, setPapers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  
+  // My Papers in Review states
+  const [myPapersInReview, setMyPapersInReview] = useState([])
+  
+  // Assigned Reviews states
+  const [assignedReviews, setAssignedReviews] = useState([])
   
   // Advanced Query 1 states
   const [query1Year, setQuery1Year] = useState('2024')
@@ -29,19 +36,53 @@ function Home({ onLogout }) {
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
 
-  // Load all papers on mount
+  // Load data when tabs change
   useEffect(() => {
     if (activeTab === 'all') {
       loadAllPapers()
+    } else if (activeTab === 'my-papers-in-review') {
+      loadMyPapersInReview()
+    } else if (activeTab === 'assigned-reviews') {
+      loadAssignedReviews()
     }
   }, [activeTab])
+
+  const loadMyPapersInReview = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${user.user_id || user.username}/papers-in-review`)
+      if (!response.ok) throw new Error('Failed to load papers in review')
+      const data = await response.json()
+      setMyPapersInReview(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadAssignedReviews = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${user.user_id || user.username}/assigned-reviews`)
+      if (!response.ok) throw new Error('Failed to load assigned reviews')
+      const data = await response.json()
+      setAssignedReviews(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const loadAllPapers = async () => {
     setLoading(true)
     setError('')
     try {
       const response = await fetch(`${API_BASE_URL}/api/papers`)
-      if (!response.ok) throw new Error('Failed to load papers')
+      if (!response.ok) throw new Error('Failed to lad papers')
       const data = await response.json()
       setPapers(data)
     } catch (err) {
@@ -157,6 +198,18 @@ function Home({ onLogout }) {
       <div className="home-content">
         <nav className="tabs">
           <button
+            className={activeTab === 'my-papers-in-review' ? 'tab active' : 'tab'}
+            onClick={() => setActiveTab('my-papers-in-review')}
+          >
+            My Papers in Review
+          </button>
+          <button
+            className={activeTab === 'assigned-reviews' ? 'tab active' : 'tab'}
+            onClick={() => setActiveTab('assigned-reviews')}
+          >
+            Assigned Reviews
+          </button>
+          <button
             className={activeTab === 'search' ? 'tab active' : 'tab'}
             onClick={() => setActiveTab('search')}
           >
@@ -196,6 +249,44 @@ function Home({ onLogout }) {
 
         <div className="content-panel">
           {error && <div className="error-message">{error}</div>}
+
+          {activeTab === 'my-papers-in-review' && (
+            <div className="my-papers-section">
+              <div className="section-header">
+                <h2>My Papers in Review</h2>
+                <button onClick={loadMyPapersInReview} className="refresh-button">
+                  Refresh
+                </button>
+              </div>
+              <p className="section-description">
+                Papers you have authored that are currently under review
+              </p>
+              {loading ? (
+                <div className="loading">Loading...</div>
+              ) : (
+                <PapersList papers={myPapersInReview} showReviewCount={true} />
+              )}
+            </div>
+          )}
+
+          {activeTab === 'assigned-reviews' && (
+            <div className="assigned-reviews-section">
+              <div className="section-header">
+                <h2>Assigned Reviews</h2>
+                <button onClick={loadAssignedReviews} className="refresh-button">
+                  Refresh
+                </button>
+              </div>
+              <p className="section-description">
+                Papers assigned to you for review
+              </p>
+              {loading ? (
+                <div className="loading">Loading...</div>
+              ) : (
+                <PapersList papers={assignedReviews} showReviewCount={true} showReviewedStatus={true} />
+              )}
+            </div>
+          )}
 
           {activeTab === 'search' && (
             <div className="search-section">
@@ -361,7 +452,7 @@ function Home({ onLogout }) {
   )
 }
 
-function PapersList({ papers }) {
+function PapersList({ papers, showReviewCount = false, showReviewedStatus = false }) {
   if (papers.length === 0) {
     return <div className="empty-state">No papers found</div>
   }
@@ -369,25 +460,49 @@ function PapersList({ papers }) {
   return (
     <div className="papers-grid">
       {papers.map((paper) => (
-        <div key={paper.paper_id} className="paper-card">
-          <h3 className="paper-title">{paper.paper_title}</h3>
-          <div className="paper-meta">
-            {paper.venue_name && (
-              <span className="badge badge-venue">
-                {paper.venue_name} {paper.year || ''}
+        <Link
+          key={paper.paper_id}
+          to={`/papers/${encodeURIComponent(paper.paper_id)}`}
+          className="paper-card-link"
+          aria-label={`Open paper ${paper.paper_title}`}
+        >
+          <div className="paper-card">
+            <h3 className="paper-title">{paper.paper_title}</h3>
+            <div className="paper-meta">
+              {paper.venue_name && (
+                <span className="badge badge-venue">
+                  {paper.venue_name} {paper.year || ''}
+                </span>
+              )}
+              <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
+                {paper.status || 'Unknown'}
               </span>
-            )}
-            <span className={`badge badge-status ${paper.status === 'Published' ? 'published' : ''}`}>
-              {paper.status || 'Unknown'}
-            </span>
+              {showReviewCount && paper.review_count !== undefined && (
+                <span className="badge badge-review">
+                  {paper.review_count} {paper.review_count === 1 ? 'Review' : 'Reviews'}
+                </span>
+              )}
+              {showReviewedStatus && paper.has_reviewed && (
+                <span className="badge badge-reviewed">
+                  Reviewed
+                </span>
+              )}
+            </div>
+            <p className="paper-abstract">
+              {paper.abstract ? (paper.abstract.length > 150 ? paper.abstract.substring(0, 150) + '...' : paper.abstract) : 'No abstract available'}
+            </p>
+            <div className="paper-footer">
+              <div className="paper-date">
+                {paper.upload_timestamp ? new Date(paper.upload_timestamp).toLocaleDateString() : 'No date'}
+              </div>
+              {paper.last_review_at && (
+                <div className="paper-last-review">
+                  Last review: {new Date(paper.last_review_at).toLocaleDateString()}
+                </div>
+              )}
+            </div>
           </div>
-          <p className="paper-abstract">
-            {paper.abstract ? (paper.abstract.length > 150 ? paper.abstract.substring(0, 150) + '...' : paper.abstract) : 'No abstract available'}
-          </p>
-          <div className="paper-date">
-            {new Date(paper.upload_timestamp).toLocaleDateString()}
-          </div>
-        </div>
+        </Link>
       ))}
     </div>
   )

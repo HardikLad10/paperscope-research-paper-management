@@ -25,6 +25,18 @@ const pool = mysql.createPool({
   },
 });
 
+// Vertex AI Configuration for GCP
+const VERTEX_AI_CONFIG = {
+  projectId: process.env.GCP_PROJECT_ID,
+  location: process.env.GCP_LOCATION || 'us-central1',
+  model: process.env.VERTEX_AI_MODEL || 'gemini-1.5-flash', // Try gemini-1.5-flash as default
+};
+
+// Check if Vertex AI is configured
+const isVertexAIConfigured = () => {
+  return !!VERTEX_AI_CONFIG.projectId;
+};
+
 // Health
 app.get("/api/health", async (_req, res) => {
   try {
@@ -378,6 +390,295 @@ app.post("/api/auth/login", async (req, res) => {
         is_reviewer: user.is_reviewer
       }
     });
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+});
+
+/**
+ * Get papers authored by user that are in review
+ * GET /api/users/:user_id/papers-in-review
+ */
+app.get("/api/users/:user_id/papers-in-review", async (req, res) => {
+  const { user_id } = req.params;
+  try {
+    const [rows] = await pool.execute(
+      `
+      SELECT
+        p.paper_id,
+        p.paper_title,
+        p.abstract,
+        p.pdf_url,
+        p.upload_timestamp,
+        p.status,
+        v.venue_name,
+        v.year,
+        COUNT(r.review_id) AS review_count,
+        MAX(r.review_timestamp) AS last_review_at
+      FROM Authorship a
+      INNER JOIN Papers p ON a.paper_id = p.paper_id
+      LEFT JOIN Venues v ON v.venue_id = p.venue_id
+      LEFT JOIN Reviews r ON p.paper_id = r.paper_id
+      WHERE a.user_id = ? 
+        AND p.status IN ('Under Review', 'In Review')
+      GROUP BY p.paper_id, p.paper_title, p.abstract, p.pdf_url, p.upload_timestamp, p.status, v.venue_name, v.year
+      ORDER BY p.upload_timestamp DESC
+      `,
+      [user_id]
+    );
+    return res.json(rows);
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+});
+
+/**
+ * Get papers assigned to user for review
+ * GET /api/users/:user_id/assigned-reviews
+ * Returns papers that are under review, user didn't author, and user is a reviewer
+ */
+app.get("/api/users/:user_id/assigned-reviews", async (req, res) => {
+  const { user_id } = req.params;
+  try {
+    // First check if user is a reviewer
+    const [userCheck] = await pool.execute(
+      `SELECT is_reviewer FROM Users WHERE user_id = ?`,
+      [user_id]
+    );
+    
+    if (userCheck.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    // Check if user is a reviewer (handle both boolean and TINYINT(1) formats)
+    const isReviewer = userCheck[0].is_reviewer === 1 || userCheck[0].is_reviewer === true;
+    if (!isReviewer) {
+      // User is not a reviewer, return empty array
+      return res.json([]);
+    }
+    
+    // Get papers under review that user didn't author
+    const [rows] = await pool.execute(
+      `
+      SELECT DISTINCT
+        p.paper_id,
+        p.paper_title,
+        p.abstract,
+        p.pdf_url,
+        p.upload_timestamp,
+        p.status,
+        v.venue_name,
+        v.year,
+        COUNT(DISTINCT r.review_id) AS review_count,
+        MAX(r.review_timestamp) AS last_review_at,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM Reviews rev 
+          WHERE rev.paper_id = p.paper_id AND rev.user_id = ?
+        ) THEN true ELSE false END AS has_reviewed
+      FROM Papers p
+      LEFT JOIN Venues v ON v.venue_id = p.venue_id
+      LEFT JOIN Reviews r ON p.paper_id = r.paper_id
+      WHERE p.status IN ('Under Review', 'In Review')
+        AND p.paper_id NOT IN (
+          SELECT a.paper_id FROM Authorship a WHERE a.user_id = ?
+        )
+      GROUP BY p.paper_id, p.paper_title, p.abstract, p.pdf_url, p.upload_timestamp, p.status, v.venue_name, v.year
+      ORDER BY p.upload_timestamp DESC
+      `,
+      [user_id, user_id]
+    );
+    return res.json(rows);
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+});
+
+/**
+ * Get recommended papers using GCP Gemini LLM
+ * GET /api/papers/:paper_id/recommendations
+ * Uses Gemini to find 10 most similar papers based on title and abstract
+ */
+app.get("/api/papers/:paper_id/recommendations", async (req, res) => {
+  const { paper_id } = req.params;
+
+  if (!isVertexAIConfigured()) {
+    return res.status(503).json({ 
+      error: "Recommendation service not available. GCP_PROJECT_ID not set." 
+    });
+  }
+
+  try {
+    // Get the current paper
+    const [currentPaperRows] = await pool.execute(
+      `SELECT paper_id, paper_title, abstract FROM Papers WHERE paper_id = ?`,
+      [paper_id]
+    );
+
+    if (currentPaperRows.length === 0) {
+      return res.status(404).json({ error: "Paper not found" });
+    }
+
+    const currentPaper = currentPaperRows[0];
+    const currentPaperText = `Title: ${currentPaper.paper_title}\nAbstract: ${currentPaper.abstract || 'No abstract available'}`;
+
+    // Get all other papers from database (excluding current paper)
+    const [allPapers] = await pool.execute(
+      `SELECT paper_id, paper_title, abstract FROM Papers WHERE paper_id != ? ORDER BY upload_timestamp DESC LIMIT 100`,
+      [paper_id]
+    );
+
+    if (allPapers.length === 0) {
+      return res.json([]);
+    }
+
+    // Prepare context for LLM
+    const papersContext = allPapers.map((p, idx) => 
+      `${idx + 1}. Paper ID: ${p.paper_id}\n   Title: ${p.paper_title}\n   Abstract: ${p.abstract || 'No abstract available'}`
+    ).join('\n\n');
+
+    // Create prompt for Gemini
+    const prompt = `You are a research paper recommendation system. Given a paper and a list of other papers, identify the 10 most similar papers based on:
+1. Research topic and subject matter
+2. Methodology and approach
+3. Abstract content and keywords
+4. Overall thematic similarity
+
+Current Paper:
+${currentPaperText}
+
+Available Papers:
+${papersContext}
+
+Please analyze the similarity and return ONLY a JSON array of exactly 10 paper IDs (in order of similarity, most similar first). Format your response as a valid JSON array like this:
+["P001", "P002", "P003", "P004", "P005", "P006", "P007", "P008", "P009", "P010"]
+
+Return ONLY the JSON array, no other text.`;
+
+    // Use Generative AI API directly (simpler, works with API key or service account)
+    // This uses the generativelanguage.googleapis.com endpoint
+    const modelName = 'gemini-2.5-flash'; // Use available model from your project
+    const genAIEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+    console.log(`[RECOMMENDATIONS] Using Generative AI API with model: ${modelName}`);
+    
+    // Get API key from service account for Generative AI API
+    // The Generative AI API can use an API key or OAuth token
+    let apiKey;
+    try {
+      const { GoogleAuth } = await import('google-auth-library');
+      const authOptions = {
+        scopes: ['https://www.googleapis.com/auth/generative-language'],
+      };
+      
+      if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        authOptions.keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      }
+      
+      const auth = new GoogleAuth(authOptions);
+      const client = await auth.getClient();
+      const tokenResponse = await client.getAccessToken();
+      apiKey = tokenResponse.token; // Use as bearer token
+    } catch (authError) {
+      console.error(`[RECOMMENDATIONS] Authentication error:`, authError);
+      return res.status(503).json({ 
+        error: "Failed to authenticate with GCP.",
+        details: authError.message
+      });
+    }
+
+    // Call Generative AI API using OAuth token
+    const response = await fetch(genAIEndpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1024,
+          topP: 0.8,
+          topK: 40,
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Vertex AI API error:`, errorText);
+      throw new Error(`Vertex AI API error: ${response.status} ${errorText}`);
+    }
+
+    const genAIResponse = await response.json();
+    // Extract text from Generative AI API response
+    const text = genAIResponse.candidates?.[0]?.content?.parts?.[0]?.text || 
+                 genAIResponse.candidates?.[0]?.text || 
+                 genAIResponse.text ||
+                 '';
+    const trimmedText = String(text).trim();
+    console.log(`[RECOMMENDATIONS] LLM response length: ${trimmedText.length} chars`);
+
+    // Parse the JSON response
+    let recommendedPaperIds;
+    try {
+      // Extract JSON from response (in case there's extra text)
+      const jsonMatch = trimmedText.match(/\[.*?\]/s);
+      if (jsonMatch) {
+        recommendedPaperIds = JSON.parse(jsonMatch[0]);
+      } else {
+        recommendedPaperIds = JSON.parse(trimmedText);
+      }
+    } catch (parseError) {
+      console.error(`[RECOMMENDATIONS] Failed to parse LLM response:`, parseError.message);
+      console.error(`[RECOMMENDATIONS] Response text (first 200 chars):`, trimmedText.substring(0, 200));
+      // Fallback: return first 10 papers sorted by similarity heuristics
+      // Try to extract paper IDs from the text even if not valid JSON
+      const paperIdMatches = trimmedText.match(/P\d{3}/g);
+      if (paperIdMatches && paperIdMatches.length > 0) {
+        recommendedPaperIds = [...new Set(paperIdMatches)].slice(0, 10);
+      } else {
+        // Last resort: return first 10 papers
+        recommendedPaperIds = allPapers.slice(0, 10).map(p => p.paper_id);
+      }
+    }
+
+    // Limit to 10 and ensure they're valid paper IDs
+    recommendedPaperIds = recommendedPaperIds.slice(0, 10).filter(id => 
+      allPapers.some(p => p.paper_id === id)
+    );
+
+    // If we got fewer than 10, fill with remaining papers
+    if (recommendedPaperIds.length < 10) {
+      const remaining = allPapers
+        .filter(p => !recommendedPaperIds.includes(p.paper_id))
+        .slice(0, 10 - recommendedPaperIds.length)
+        .map(p => p.paper_id);
+      recommendedPaperIds = [...recommendedPaperIds, ...remaining];
+    }
+
+    // Fetch full paper details for recommended papers
+    const placeholders = recommendedPaperIds.map(() => '?').join(',');
+    const [recommendedPapers] = await pool.execute(
+      `SELECT 
+        p.paper_id, 
+        p.paper_title, 
+        p.abstract, 
+        p.upload_timestamp, 
+        p.status,
+        v.venue_name, 
+        v.year
+      FROM Papers p
+      LEFT JOIN Venues v ON v.venue_id = p.venue_id
+      WHERE p.paper_id IN (${placeholders})
+      ORDER BY FIELD(p.paper_id, ${placeholders})`,
+      [...recommendedPaperIds, ...recommendedPaperIds]
+    );
+
+    return res.json(recommendedPapers);
   } catch (e) {
     return res.status(500).json({ error: String(e) });
   }

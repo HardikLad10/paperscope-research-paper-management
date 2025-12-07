@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState, useEffect } from 'react'
 import Login from './pages/Login'
 import Home from './pages/Home'
+import PaperDetail from './pages/PaperDetail'
 import './App.css'
 
 function App() {
@@ -57,6 +58,16 @@ function App() {
           element={
             isAuthenticated ? (
               <Home onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/papers/:paper_id"
+          element={
+            isAuthenticated ? (
+              <PaperDetail />
             ) : (
               <Navigate to="/login" replace />
             )
