@@ -4,7 +4,7 @@ import './MainLayout.css'
 export function MainLayout({ children, onLogout }) {
   const location = useLocation()
   const navigate = useNavigate()
-  
+
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   const path = location.pathname
 
@@ -48,10 +48,16 @@ export function MainLayout({ children, onLogout }) {
           Insights
         </button>
         <button
-          className={isActive('/papers/new') ? 'tab active' : 'tab'}
-          onClick={() => navigate('/papers/new')}
+          className={isActive('/create-paper') ? 'tab active' : 'tab'}
+          onClick={() => navigate('/create-paper')}
         >
-          New Paper
+          Add My Paper
+        </button>
+        <button
+          className={isActive('/batch-create') ? 'tab active' : 'tab'}
+          onClick={() => navigate('/batch-create')}
+        >
+          Batch Other Authors' Papers
         </button>
         {(user.is_reviewer === 1 || user.is_reviewer === '1') && (
           <button

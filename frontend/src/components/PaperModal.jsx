@@ -22,7 +22,7 @@ function PaperModal({ paper_id: sourcePaperId, onClose, onSelectRecommendation }
   useEffect(() => {
     async function loadPaper() {
       if (!sourcePaperId) return
-      
+
       setLoading(true)
       setError(null)
       try {
@@ -44,7 +44,7 @@ function PaperModal({ paper_id: sourcePaperId, onClose, onSelectRecommendation }
   useEffect(() => {
     async function loadRecs() {
       if (!sourcePaperId) return
-      
+
       setRecommendationsLoading(true)
       try {
         const res = await fetch(`${API_BASE_URL}/api/papers/${encodeURIComponent(sourcePaperId)}/recommendations`)
@@ -119,7 +119,7 @@ function PaperModal({ paper_id: sourcePaperId, onClose, onSelectRecommendation }
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal-container">
         <button className="modal-close" onClick={onClose}>×</button>
-        
+
         {loading && (
           <div className="modal-loading">
             <p>Loading paper details...</p>
@@ -170,8 +170,8 @@ function PaperModal({ paper_id: sourcePaperId, onClose, onSelectRecommendation }
             )}
 
             <div className="modal-recommendations">
-              <h3>AI Recommended Papers</h3>
-              
+              <h3>Related Papers</h3>
+
               {recommendationsLoading && (
                 <p className="recommendations-loading">Loading recommendations...</p>
               )}
@@ -190,7 +190,7 @@ function PaperModal({ paper_id: sourcePaperId, onClose, onSelectRecommendation }
                     >
                       <div className="recommendation-header">
                         <strong className="recommendation-title">{rec.title}</strong>
-                        <span className="ai-badge">AI Generated</span>
+
                       </div>
                       {rec.summary && (
                         <p className="recommendation-summary">

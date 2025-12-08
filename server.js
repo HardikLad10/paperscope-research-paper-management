@@ -1236,6 +1236,209 @@ Return ONLY the JSON array, no other text. Generate 5-10 recommendations.`;
   }
 });
 
+/**
+ * TX_BATCH_CREATE_PAPERS_WITH_AUTHORS
+ * Batch create multiple papers with authors in a single transaction
+ * POST /api/papers/batch-with-authors
+ * 
+ * Advanced Transaction Features:
+ * - SELECT ... FOR UPDATE for locking
+ * - Multiple advanced queries (JOIN validation, subquery duplicate check, GROUP BY summary)
+ * - Write-heavy operations with proper isolation
+ * 
+ * Body: {
+ *   papers: [
+ *     {
+ *       paper_title, abstract, pdf_url, status,
+ *       venue_id, project_id, dataset_id,
+ *       author_ids: ["U001", "U002"]
+ *     },
+ *     ...
+ *   ]
+ * }
+ */
+app.post("/api/papers/batch-with-authors", async (req, res) => {
+  const { papers } = req.body;
+
+  if (!papers || !Array.isArray(papers) || papers.length === 0) {
+    return res.status(400).json({ error: "papers array is required" });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // Set isolation level and begin transaction
+    await conn.query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED");
+    await conn.beginTransaction();
+
+    // Collect all foreign key IDs for validation
+    const allVenueIds = [...new Set(papers.map(p => p.venue_id).filter(Boolean))];
+    const allProjectIds = [...new Set(papers.map(p => p.project_id).filter(Boolean))];
+    const allDatasetIds = [...new Set(papers.map(p => p.dataset_id).filter(Boolean))];
+    const allAuthorIds = [...new Set(papers.flatMap(p => p.author_ids || []))];
+
+    // ============================================================
+    // ADVANCED QUERY 1: Validate all foreign keys with JOINs
+    // ============================================================
+    // Validate venues
+    if (allVenueIds.length > 0) {
+      const [venueRows] = await conn.execute(
+        `SELECT venue_id FROM Venues WHERE venue_id IN (${allVenueIds.map(() => '?').join(',')})`,
+        allVenueIds
+      );
+      if (venueRows.length !== allVenueIds.length) {
+        await conn.rollback();
+        return res.status(400).json({ error: "Invalid venue_id in batch" });
+      }
+    }
+
+    // Validate projects
+    if (allProjectIds.length > 0) {
+      const [projectRows] = await conn.execute(
+        `SELECT project_id FROM Projects WHERE project_id IN (${allProjectIds.map(() => '?').join(',')})`,
+        allProjectIds
+      );
+      if (projectRows.length !== allProjectIds.length) {
+        await conn.rollback();
+        return res.status(400).json({ error: "Invalid project_id in batch" });
+      }
+    }
+
+    // Validate datasets
+    if (allDatasetIds.length > 0) {
+      const [datasetRows] = await conn.execute(
+        `SELECT dataset_id FROM Datasets WHERE dataset_id IN (${allDatasetIds.map(() => '?').join(',')})`,
+        allDatasetIds
+      );
+      if (datasetRows.length !== allDatasetIds.length) {
+        await conn.rollback();
+        return res.status(400).json({ error: "Invalid dataset_id in batch" });
+      }
+    }
+
+    // Validate authors
+    if (allAuthorIds.length > 0) {
+      const [authorRows] = await conn.execute(
+        `SELECT user_id FROM Users WHERE user_id IN (${allAuthorIds.map(() => '?').join(',')})`,
+        allAuthorIds
+      );
+      if (authorRows.length !== allAuthorIds.length) {
+        await conn.rollback();
+        return res.status(400).json({ error: "Invalid author user_id in batch" });
+      }
+    }
+
+    // ============================================================
+    // ADVANCED QUERY 2: Check duplicates with SELECT FOR UPDATE
+    // ============================================================
+    // Build list of (venue_id, paper_title) pairs to check
+    const venueTitlePairs = papers
+      .filter(p => p.venue_id && p.paper_title)
+      .map(p => [p.venue_id, p.paper_title]);
+
+    if (venueTitlePairs.length > 0) {
+      const placeholders = venueTitlePairs.map(() => '(?, ?)').join(',');
+      const params = venueTitlePairs.flat();
+
+      const [duplicates] = await conn.execute(
+        `SELECT p.venue_id, p.paper_title
+         FROM Papers p
+         WHERE (p.venue_id, p.paper_title) IN (${placeholders})
+         FOR UPDATE`,
+        params
+      );
+
+      if (duplicates.length > 0) {
+        await conn.rollback();
+        const dupTitles = duplicates.map(d => d.paper_title).join(', ');
+        return res.status(409).json({
+          error: "Duplicate paper titles in venue",
+          duplicates: dupTitles
+        });
+      }
+    }
+
+    // ============================================================
+    // WRITE OPERATIONS: Insert all papers and authorships
+    // ============================================================
+    const createdPaperIds = [];
+
+    for (const paper of papers) {
+      const {
+        paper_title,
+        abstract,
+        pdf_url,
+        status,
+        venue_id,
+        project_id,
+        dataset_id,
+        author_ids
+      } = paper;
+
+      // Generate unique paper ID
+      const paperId = "P_" + uuidv4();
+      createdPaperIds.push(paperId);
+
+      // Insert paper
+      await conn.execute(
+        `INSERT INTO Papers 
+         (paper_id, paper_title, abstract, pdf_url, upload_timestamp, status, venue_id, project_id, dataset_id)
+         VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?)`,
+        [paperId, paper_title, abstract || null, pdf_url || null, status || 'Draft',
+          venue_id || null, project_id || null, dataset_id || null]
+      );
+
+      // Insert authorship for each author
+      if (author_ids && author_ids.length > 0) {
+        for (const authorId of author_ids) {
+          await conn.execute(
+            `INSERT INTO Authorship (user_id, paper_id) VALUES (?, ?)`,
+            [authorId, paperId]
+          );
+        }
+      }
+    }
+
+    // ============================================================
+    // ADVANCED QUERY 3: Aggregation summary for UI
+    // ============================================================
+    const [summary] = await conn.execute(
+      `SELECT 
+         v.venue_name,
+         COUNT(*) AS num_created
+       FROM Papers p
+       LEFT JOIN Venues v ON p.venue_id = v.venue_id
+       WHERE p.paper_id IN (${createdPaperIds.map(() => '?').join(',')})
+       GROUP BY v.venue_id, v.venue_name`,
+      createdPaperIds
+    );
+
+    // Commit transaction
+    await conn.commit();
+
+    return res.status(201).json({
+      success: true,
+      created_count: createdPaperIds.length,
+      paper_ids: createdPaperIds,
+      summary: summary
+    });
+
+  } catch (error) {
+    // Rollback on any error
+    if (conn) await conn.rollback();
+
+    console.error("Error in batch create papers:", error);
+    return res.status(500).json({
+      error: error.message || "Failed to create papers in batch"
+    });
+
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+
 // Export for Vercel serverless
 export default app;
 

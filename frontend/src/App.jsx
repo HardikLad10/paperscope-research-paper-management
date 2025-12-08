@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import CreatePaperPage from './pages/CreatePaperPage'
+import BatchCreatePapersPage from './pages/BatchCreatePapersPage'
 import AuthorInsightsPage from './pages/AuthorInsightsPage'
 import ReviewPapersPage from './pages/ReviewPapersPage'
 import PaperDetail from './pages/PaperDetail'
@@ -82,11 +83,23 @@ function App() {
           }
         />
         <Route
-          path="/papers/new"
+          path="/create-paper"
           element={
             isAuthenticated ? (
               <MainLayout onLogout={handleLogout}>
                 <CreatePaperPage />
+              </MainLayout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/batch-create"
+          element={
+            isAuthenticated ? (
+              <MainLayout onLogout={handleLogout}>
+                <BatchCreatePapersPage />
               </MainLayout>
             ) : (
               <Navigate to="/login" replace />
