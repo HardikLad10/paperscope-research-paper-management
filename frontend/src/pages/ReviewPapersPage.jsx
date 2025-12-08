@@ -12,6 +12,14 @@ export default function ReviewPapersPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Pagination states
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0
+  })
+
   // Filter states
   const [filters, setFilters] = useState({
     venue_id: '',
@@ -48,12 +56,12 @@ export default function ReviewPapersPage() {
       .catch(() => setVenues([]))
   }, [navigate])
 
-  // Load reviewable papers when user is set
+  // Load reviewable papers when user is set or pagination changes
   useEffect(() => {
     if (currentUser) {
       loadReviewablePapers()
     }
-  }, [currentUser])
+  }, [currentUser, pagination.page, pagination.limit, filters])
 
   // Load reviews when a paper is selected
   useEffect(() => {
@@ -76,28 +84,33 @@ export default function ReviewPapersPage() {
     try {
       const params = new URLSearchParams()
       params.append('user_id', currentUser.user_id)
-      
+
       // Only add venue_id if it's not empty
       if (filters.venue_id && filters.venue_id.trim()) {
         params.append('venue_id', filters.venue_id.trim())
       }
-      
+
       // Only add search query if it's not empty
       if (filters.search && filters.search.trim()) {
         params.append('q', filters.search.trim())
       }
 
+      // Add pagination parameters
+      params.append('page', pagination.page)
+      params.append('limit', pagination.limit)
+
       const url = `${API_BASE_URL}/api/reviewable-papers?${params.toString()}`
-      
+
       const response = await fetch(url)
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to load reviewable papers' }))
         throw new Error(errorData.error || 'Failed to load reviewable papers')
       }
-      
+
       const data = await response.json()
-      setPapers(Array.isArray(data) ? data : [])
+      setPapers(Array.isArray(data.papers) ? data.papers : [])
+      setPagination(data.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 })
       setError('')
     } catch (err) {
       console.error('Error loading reviewable papers:', err)
@@ -113,12 +126,20 @@ export default function ReviewPapersPage() {
   }
 
   const applyFilters = () => {
-    loadReviewablePapers()
+    setPagination(prev => ({ ...prev, page: 1 })) // Reset to page 1 when filtering
   }
 
   const resetFilters = () => {
     setFilters({ venue_id: '', search: '' })
-    setTimeout(() => loadReviewablePapers(), 100)
+    setPagination(prev => ({ ...prev, page: 1 }))
+  }
+
+  const handlePageChange = (newPage) => {
+    setPagination(prev => ({ ...prev, page: newPage }))
+  }
+
+  const handleLimitChange = (newLimit) => {
+    setPagination({ page: 1, limit: newLimit, total: pagination.total, totalPages: Math.ceil(pagination.total / newLimit) })
   }
 
   const handleRowClick = (paper) => {
@@ -152,12 +173,12 @@ export default function ReviewPapersPage() {
       } else {
         setSubmitSuccess(`Success! Your review has been submitted for "${selectedPaper.paper_title}".`)
         setNewComment('')
-        
+
         // Refresh reviews list
         const reviewsRes = await fetch(`${API_BASE_URL}/api/papers/${selectedPaper.paper_id}/reviews`)
         const reviewsData = await reviewsRes.json()
         setReviews(reviewsData)
-        
+
         // Auto-dismiss success message after 5 seconds
         setTimeout(() => setSubmitSuccess(''), 5000)
       }
@@ -216,6 +237,41 @@ export default function ReviewPapersPage() {
       </div>
 
       {error && <div className="error-message">{error}</div>}
+
+      {/* Pagination Controls - Top */}
+      {!loading && papers.length > 0 && (
+        <div className="pagination-controls">
+          <div className="pagination-info">
+            Showing {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} papers
+          </div>
+          <div className="pagination-buttons">
+            <button
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page === 1}
+              className="pagination-btn"
+            >
+              Previous
+            </button>
+            <span className="page-indicator">Page {pagination.page} of {pagination.totalPages}</span>
+            <button
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+              className="pagination-btn"
+            >
+              Next
+            </button>
+          </div>
+          <div className="page-size-selector">
+            <label>Per page:</label>
+            <select value={pagination.limit} onChange={(e) => handleLimitChange(Number(e.target.value))}>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Papers Table */}
       <div className="papers-table-container">
@@ -285,11 +341,11 @@ export default function ReviewPapersPage() {
 
           <div className="reviews-section">
             <h3>Write a Review</h3>
-            
+
             {submitError && (
               <div className="error-banner">{submitError}</div>
             )}
-            
+
             {submitSuccess && (
               <div className="success-banner">{submitSuccess}</div>
             )}
@@ -329,7 +385,7 @@ export default function ReviewPapersPage() {
             <hr />
 
             <h3>Existing Reviews ({reviews.length})</h3>
-            
+
             {reviews.length === 0 ? (
               <p className="empty-state">No reviews yet. Be the first to review this paper.</p>
             ) : (
