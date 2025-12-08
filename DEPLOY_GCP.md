@@ -26,14 +26,14 @@ This guide will help you deploy both the backend API and frontend to GCP using C
    ./deploy-frontend.sh https://YOUR-BACKEND-URL
    ```
 
-That's it! Your app will be live on GCP. 🎉
+That's it! Your app will be live on GCP. 
 
 ---
 
 ## Prerequisites
 
 1. **GCP Project**: `gen-lang-client-0153916214` (already set up)
-2. **Billing**: Enabled with $50 credit ✅
+2. **Billing**: Enabled with $50 credit 
 3. **gcloud CLI**: Install if not already installed
    ```bash
    # macOS
@@ -68,12 +68,12 @@ The easiest way is to use the provided deployment scripts:
 ```
 
 This script will:
-- ✅ Enable required GCP APIs
-- ✅ Build and deploy to Cloud Run
-- ✅ Configure Cloud SQL connection
-- ✅ Set all environment variables
-- ✅ Grant necessary permissions
-- ✅ Return your service URL
+-  Enable required GCP APIs
+-  Build and deploy to Cloud Run
+-  Configure Cloud SQL connection
+-  Set all environment variables
+-  Grant necessary permissions
+-  Return your service URL
 
 ### Deploy Frontend:
 

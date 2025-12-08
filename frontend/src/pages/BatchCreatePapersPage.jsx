@@ -220,7 +220,7 @@ export default function BatchCreatePapersPage() {
 
             {success && (
                 <div className="success-banner">
-                    <h3>🎉 Batch Created Successfully!</h3>
+                    <h3> Batch Created Successfully!</h3>
                     <p>{success.count} papers were created</p>
                     {success.summary.length > 0 && (
                         <ul style={{ marginTop: '10px', textAlign: 'left' }}>
@@ -453,19 +453,22 @@ export default function BatchCreatePapersPage() {
                     right: 0,
                     background: 'white',
                     borderTop: '2px solid #e5e7eb',
-                    padding: '15px 20px',
+                    padding: '15px 0',
                     display: 'flex',
                     justifyContent: 'center',
-                    gap: '15px',
                     zIndex: 1000,
                     boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
                 }}>
-                    <button type="button" className="btn-cancel" onClick={() => navigate('/my-papers')} style={{ maxWidth: '150px' }}>
-                        Cancel
-                    </button>
-                    <button type="submit" className="btn-submit" disabled={loading} style={{ maxWidth: '250px' }}>
-                        {loading ? `Creating ${papers.length} paper(s)...` : `Submit Batch (${papers.length} paper${papers.length > 1 ? 's' : ''})`}
-                    </button>
+                    <div style={{ width: '100%', maxWidth: '1200px', padding: '0 40px' }}>
+                        <div className="form-actions">
+                            <button type="button" className="btn-cancel" onClick={() => navigate('/my-papers')}>
+                                Cancel
+                            </button>
+                            <button type="submit" className="btn-submit" disabled={loading}>
+                                {loading ? 'Creating...' : 'Submit Batch'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </form>
         </div>

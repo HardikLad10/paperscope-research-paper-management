@@ -74,3 +74,40 @@ END$$
 
 DELIMITER ;
 
+-- ============================================================
+-- Trigger 4: trg_reviews_block_short_comments
+-- Prevents very short or uninformative review comments
+-- ============================================================
+
+DELIMITER $$
+
+CREATE TRIGGER trg_reviews_block_short_comments
+BEFORE INSERT ON Reviews
+FOR EACH ROW
+BEGIN
+    IF CHAR_LENGTH(TRIM(NEW.comment)) < 10 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Review comment too short. Please provide meaningful feedback.';
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- ============================================================
+-- Trigger 5: trg_papers_before_insert_status_default
+-- Ensures all new papers have a valid status
+-- ============================================================
+
+DELIMITER $$
+
+CREATE TRIGGER trg_papers_before_insert_status_default
+BEFORE INSERT ON Papers
+FOR EACH ROW
+BEGIN
+    IF NEW.status NOT IN ('Draft', 'Under Review', 'Published', 'AI_DRAFT') THEN
+        SET NEW.status = 'Draft';
+    END IF;
+END$$
+
+DELIMITER ;
+

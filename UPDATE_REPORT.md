@@ -65,7 +65,7 @@
 - **Purpose:** Create single paper with authors
 - **Features:** Atomic paper + authorship creation
 
-### Transaction 3: `TX_BATCH_CREATE_PAPERS_WITH_AUTHORS` ⭐
+### Transaction 3: `TX_BATCH_CREATE_PAPERS_WITH_AUTHORS` 
 - **File:** `server.js` (line 1229-1434)
 - **Type:** Backend transaction (Advanced)
 - **Purpose:** Batch create multiple papers
@@ -91,10 +91,10 @@
 ## Key Changes
 
 ### New Features
-- ✅ Batch paper creation with advanced transaction
-- ✅ Collapsible UI for managing multiple papers
-- ✅ Comma-separated author input
-- ✅ Per-venue summary with GROUP BY
+- Batch paper creation with advanced transaction
+- Collapsible UI for managing multiple papers
+- Comma-separated author input
+- Per-venue summary with GROUP BY
 
 ### UI Updates
 - "New Paper" → "Add My Paper"
@@ -132,7 +132,7 @@ This update adds advanced transaction capabilities, improves the UI for batch op
 
 ## New Features Added
 
-### 1. Batch Paper Creation Transaction ⭐
+### 1. Batch Paper Creation Transaction 
 
 **Purpose:** Demonstrate advanced transaction features with write-heavy operations, locking, and complex queries.
 
@@ -242,7 +242,7 @@ This update adds advanced transaction capabilities, improves the UI for batch op
    - Single paper creation with authors
    - Location: `server.js` line 866
 
-3. **`TX_BATCH_CREATE_PAPERS_WITH_AUTHORS`** ⭐ (Backend-level - Advanced)
+3. **`TX_BATCH_CREATE_PAPERS_WITH_AUTHORS`**  (Backend-level - Advanced)
    - Batch paper creation with advanced queries
    - Location: `server.js` line 1229
 
@@ -255,17 +255,17 @@ This update adds advanced transaction capabilities, improves the UI for batch op
 ## Testing & Verification
 
 **Batch Create Transaction Testing:**
-- ✅ Successfully creates multiple papers atomically
-- ✅ Validates all foreign keys before insertion
-- ✅ Prevents duplicate titles in same venue with SELECT FOR UPDATE
-- ✅ Returns per-venue summary with GROUP BY
-- ✅ Rolls back on any error (FK violation, duplicate, etc.)
+- Successfully creates multiple papers atomically
+- Validates all foreign keys before insertion
+- Prevents duplicate titles in same venue with SELECT FOR UPDATE
+- Returns per-venue summary with GROUP BY
+- Rolls back on any error (FK violation, duplicate, etc.)
 
 **UI Testing:**
-- ✅ Collapsible cards work correctly
-- ✅ Comma-separated author input parses correctly
-- ✅ Success modal shows venue breakdown
-- ✅ Validation errors display properly
+- Collapsible cards work correctly
+- Comma-separated author input parses correctly
+- Success modal shows venue breakdown
+- Validation errors display properly
 
 ---
 
@@ -357,12 +357,12 @@ This update adds advanced transaction capabilities, improves the UI for batch op
 **Transactions:** 4 transactions (1 advanced)  
 
 **Advanced Transaction Features:**
-- ✅ SELECT FOR UPDATE (locking)
-- ✅ JOIN-based validation
-- ✅ Composite IN subqueries
-- ✅ GROUP BY aggregation
-- ✅ Write-heavy operations
-- ✅ ACID compliance
+- SELECT FOR UPDATE (locking)
+- JOIN-based validation
+- Composite IN subqueries
+- GROUP BY aggregation
+- Write-heavy operations
+- ACID compliance
 
 ---
 

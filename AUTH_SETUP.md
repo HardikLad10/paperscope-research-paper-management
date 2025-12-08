@@ -7,7 +7,7 @@ Failed to authenticate with GCP. Please configure GOOGLE_APPLICATION_CREDENTIALS
 
 ## Solution: Choose One Method
 
-### ✅ Method 1: Service Account (Recommended - No Installation)
+###  Method 1: Service Account (Recommended - No Installation)
 
 **Step 1: Create Service Account**
 1. Go to: https://console.cloud.google.com/iam-admin/serviceaccounts?project=gen-lang-client-0153916214

@@ -9,7 +9,7 @@
 2. Look at the **"Linked projects"** section to see which project(s) are linked
 3. Note the **Project ID** of the project with billing enabled
 
-**✅ Your Credit Status:**
+** Your Credit Status:**
 - Credit: "Database Systems aug25" 
 - Status: Available
 - Amount: $50.00 (100% remaining)
@@ -157,10 +157,10 @@ VERTEX_AI_MODEL=gemini-pro
 ## Next Steps
 
 Once everything is configured:
-1. ✅ Your server should start without errors
-2. ✅ View any paper in the frontend
-3. ✅ See "Similar Papers" section with AI-powered recommendations
-4. ✅ Click on recommended papers to navigate to them
+1.  Your server should start without errors
+2.  View any paper in the frontend
+3.  See "Similar Papers" section with AI-powered recommendations
+4.  Click on recommended papers to navigate to them
 
-Enjoy your AI-powered paper recommendations! 🎉
+Enjoy your AI-powered paper recommendations! 
 

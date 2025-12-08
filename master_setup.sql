@@ -29,7 +29,7 @@ CREATE TABLE Venues (
     venue_id   VARCHAR(10) PRIMARY KEY,
     venue_name VARCHAR(150) NOT NULL,
     venue_type VARCHAR(50),
-    publisher  VARCHAR(100),
+    publisher  VARCHAR(100),a
     year       INT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

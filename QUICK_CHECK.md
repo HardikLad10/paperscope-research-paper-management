@@ -1,6 +1,6 @@
 # Quick Setup Verification Checklist
 
-## ✅ What You Need to Verify:
+##  What You Need to Verify:
 
 ### 1. GCP Project Setup
 - [ ] You have a GCP project (either created or existing)

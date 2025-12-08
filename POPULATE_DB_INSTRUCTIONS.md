@@ -3,14 +3,14 @@
 ## Generated Data
 
 The `populate_database.sql` file contains:
-- ✅ **200 users** (70% are reviewers)
-- ✅ **15 top CS conferences**: NeurIPS, ICCV, CVPR, ICML, ICLR, ACL, EMNLP, AAAI, SIGGRAPH, SIGKDD, WWW, SIGIR, CHI, SIGMOD, VLDB
-- ✅ **8 datasets**: ImageNet, COCO, GLUE, SQuAD, CIFAR-10, MNIST, WikiText, OpenImages
-- ✅ **50 research projects**
-- ✅ **1000 papers** with realistic titles and abstracts from ML/CV/NLP topics
-- ✅ **~3000 authorship records** (2-5 authors per paper)
-- ✅ **~2000 reviews** (only for published/under review papers)
-- ✅ **~500 related paper relationships**
+-  **200 users** (70% are reviewers)
+-  **15 top CS conferences**: NeurIPS, ICCV, CVPR, ICML, ICLR, ACL, EMNLP, AAAI, SIGGRAPH, SIGKDD, WWW, SIGIR, CHI, SIGMOD, VLDB
+-  **8 datasets**: ImageNet, COCO, GLUE, SQuAD, CIFAR-10, MNIST, WikiText, OpenImages
+-  **50 research projects**
+-  **1000 papers** with realistic titles and abstracts from ML/CV/NLP topics
+-  **~3000 authorship records** (2-5 authors per paper)
+-  **~2000 reviews** (only for published/under review papers)
+-  **~500 related paper relationships**
 
 ## How to Populate
 

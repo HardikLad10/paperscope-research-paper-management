@@ -1,6 +1,6 @@
 # Environment Variables & Security
 
-## Your .env File is NOT Uploaded to GCP ✅
+## Your .env File is NOT Uploaded to GCP 
 
 The `.env` file stays on your local machine and is **never** uploaded to GCP.
 
@@ -27,12 +27,12 @@ These are set **in the command**, not from your `.env` file.
 
 ## Security Best Practices
 
-### ✅ What's Safe
+###  What's Safe
 - `.env` file stays local (in `.gitignore`)
 - Environment variables in Cloud Run are encrypted at rest
 - Only accessible to your Cloud Run service
 
-### ⚠️ What to Watch
+###  What to Watch
 - The deployment script contains credentials in plain text
 - Anyone with access to the script can see the values
 - Consider using **Secret Manager** for sensitive values
@@ -61,8 +61,8 @@ But for now, the current approach (direct env vars) is fine for development.
 
 ## Summary
 
-- ✅ `.env` file never leaves your computer
-- ✅ Environment variables are set in deployment command
-- ✅ Cloud Run stores them securely (encrypted)
-- ⚠️ Script contains credentials (but that's normal for deployment scripts)
+-  `.env` file never leaves your computer
+-  Environment variables are set in deployment command
+-  Cloud Run stores them securely (encrypted)
+-  Script contains credentials (but that's normal for deployment scripts)
 
