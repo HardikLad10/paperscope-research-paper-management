@@ -1,0 +1,5 @@
+Procedure Name	Type	Returns	Created	Last Modified
+sp_author_insights	PROCEDURE	NULL	2025-12-07 22:23:11	2025-12-07 22:23:11
+sp_author_portfolio_with_coauthors	PROCEDURE	NULL	2025-12-07 22:23:11	2025-12-07 22:23:11
+sp_create_ai_draft_paper	PROCEDURE	NULL	2025-12-07 22:23:11	2025-12-07 22:23:11
+sp_delete_paper_safe	PROCEDURE	NULL	2025-12-07 22:26:05	2025-12-07 22:26:05

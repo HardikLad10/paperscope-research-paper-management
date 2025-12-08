@@ -500,9 +500,9 @@ app.get("/api/reviewable-papers", async (req, res) => {
 
     // Search filter
     if (q && q.trim()) {
-      const searchPattern = `%${q.trim()}%`;
+      const searchTerm = `%${q.trim()}%`;
       whereConditions.push("(p.paper_title LIKE ? OR p.abstract LIKE ?)");
-      params.push(searchPattern, searchPattern);
+      params.push(searchTerm, searchTerm);
     }
 
     const whereClause = whereConditions.join(" AND ");
@@ -513,11 +513,13 @@ app.get("/api/reviewable-papers", async (req, res) => {
       FROM Papers p
       WHERE ${whereClause}
     `;
-    const [countRows] = await pool.execute(countQuery, params);
-    const total = countRows[0].total;
 
-    // Get paginated results
-    const query = `
+    const [countResult] = await pool.execute(countQuery, params);
+    const total = countResult[0].total;
+    const totalPages = Math.ceil(total / limit);
+
+    // Get paginated data
+    const dataQuery = `
       SELECT
         p.paper_id,
         p.paper_title,
@@ -537,15 +539,15 @@ app.get("/api/reviewable-papers", async (req, res) => {
       LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
     `;
 
-    const [rows] = await pool.execute(query, params);
+    const [papers] = await pool.execute(dataQuery, params);
 
-    return res.json({
-      papers: rows,
+    res.json({
+      papers,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: parseInt(total),
-        totalPages: Math.ceil(total / limit)
+        page,
+        limit,
+        total,
+        totalPages
       }
     });
   } catch (e) {

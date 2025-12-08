@@ -1,0 +1,38 @@
+=== TRANSACTIONS IN DATABASE ===
+
+Transactions are implemented within stored procedures:
+
+1. sp_delete_paper_safe
+   - Transaction Type: EXPLICIT
+   - Isolation Level: READ COMMITTED
+   - Operations:
+     * DELETE FROM Reviews WHERE paper_id = p_paper_id
+     * DELETE FROM RelatedPapers WHERE paper_id = p_paper_id OR related_paper_id = p_paper_id
+     * DELETE FROM Authorship WHERE paper_id = p_paper_id
+     * DELETE FROM Papers WHERE paper_id = p_paper_id
+   - Commit/Rollback: COMMIT on success, automatic rollback on error
+   - Purpose: Ensures atomic deletion of paper and all related records
+
+2. sp_create_ai_draft_paper
+   - Transaction Type: IMPLICIT (single INSERT)
+   - Operations:
+     * INSERT INTO Papers (paper_id, paper_title, abstract, pdf_url, status, ai_generated, source_paper_id, upload_timestamp)
+     * INSERT INTO Authorship (user_id, paper_id)
+     * INSERT INTO RelatedPapers (paper_id, related_paper_id, relation_type)
+   - Purpose: Creates AI-generated draft paper with authorship and relationship
+
+3. Application-Level Transactions (server.js)
+   - POST /api/papers/with-authors
+     * INSERT INTO Papers
+     * INSERT INTO Authorship (for each author)
+   - Purpose: Ensures paper and authorship records are created atomically
+
+Transaction Isolation Levels:
+- Default: REPEATABLE READ (MySQL InnoDB default)
+- sp_delete_paper_safe: READ COMMITTED (explicitly set)
+
+ACID Properties Enforced:
+- Atomicity: All operations complete or none (via transactions)
+- Consistency: Foreign key constraints ensure referential integrity
+- Isolation: Transaction isolation levels prevent dirty reads
+- Durability: InnoDB storage engine ensures committed data persists
