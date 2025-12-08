@@ -13,14 +13,12 @@ app.use(express.json());
 // ---- MySQL pool (raw SQL) ----
 // Handle Cloud SQL Unix socket connection (when DB_HOST starts with /cloudsql/)
 const dbConfig = {
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "research_paper_review_db",
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  charset: 'utf8mb4',
-  collation: 'utf8mb4_0900_ai_ci'
 };
 
 if (process.env.DB_HOST && process.env.DB_HOST.startsWith('/cloudsql/')) {
@@ -138,8 +136,8 @@ app.get("/api/papers", async (req, res) => {
         v.year,
         COUNT(r.review_id) AS review_count
       FROM Papers p
-      LEFT JOIN Venues v ON v.venue_id COLLATE utf8mb4_0900_ai_ci = p.venue_id COLLATE utf8mb4_0900_ai_ci
-      LEFT JOIN Reviews r ON r.paper_id COLLATE utf8mb4_0900_ai_ci = p.paper_id COLLATE utf8mb4_0900_ai_ci
+      LEFT JOIN Venues v ON v.venue_id = p.venue_id
+      LEFT JOIN Reviews r ON r.paper_id = p.paper_id
     `;
     if (whereClause) {
       dataQuery += whereClause;
@@ -183,8 +181,8 @@ app.get("/api/papers/:paper_id", async (req, res) => {
         COUNT(r.review_id) AS review_count,
         MAX(r.review_timestamp) AS last_review_at
       FROM Papers p
-      LEFT JOIN Venues v ON v.venue_id COLLATE utf8mb4_0900_ai_ci = p.venue_id COLLATE utf8mb4_0900_ai_ci
-      LEFT JOIN Reviews r ON r.paper_id COLLATE utf8mb4_0900_ai_ci = p.paper_id COLLATE utf8mb4_0900_ai_ci
+      LEFT JOIN Venues v ON v.venue_id = p.venue_id
+      LEFT JOIN Reviews r ON r.paper_id = p.paper_id
       WHERE p.paper_id = ?
       GROUP BY p.paper_id, p.paper_title, p.abstract, p.pdf_url, p.upload_timestamp, p.status, v.venue_name, v.year
       `,
@@ -225,7 +223,7 @@ app.get("/api/venues/recent", async (req, res) => {
         v.venue_id, v.venue_name, v.year,
         COUNT(p.paper_id) AS total_papers
       FROM Venues v
-      JOIN Papers p ON p.venue_id COLLATE utf8mb4_0900_ai_ci = v.venue_id COLLATE utf8mb4_0900_ai_ci
+      JOIN Papers p ON p.venue_id = v.venue_id
       WHERE v.year >= ? AND p.status IN ('Published')
       GROUP BY v.venue_id, v.venue_name, v.year
       ORDER BY v.year DESC, total_papers DESC
@@ -497,9 +495,9 @@ app.get("/api/reviewable-papers", async (req, res) => {
     // Exclude papers already reviewed by user_id
     whereConditions.push(`
       NOT EXISTS (
-        SELECT 1 FROM Reviews r2
-        WHERE r2.paper_id = p.paper_id
-          AND r2.user_id = ?
+        SELECT 1 FROM Reviews r
+        WHERE r.paper_id = p.paper_id
+          AND r.user_id = ?
       )
     `);
     params.push(user_id);
@@ -512,9 +510,9 @@ app.get("/api/reviewable-papers", async (req, res) => {
 
     // Search filter
     if (q && q.trim()) {
-      const searchPattern = `%${q.trim()}%`;
+      const searchTerm = `%${q.trim()}%`;
       whereConditions.push("(p.paper_title LIKE ? OR p.abstract LIKE ?)");
-      params.push(searchPattern, searchPattern);
+      params.push(searchTerm, searchTerm);
     }
 
     const whereClause = whereConditions.join(" AND ");
@@ -525,11 +523,13 @@ app.get("/api/reviewable-papers", async (req, res) => {
       FROM Papers p
       WHERE ${whereClause}
     `;
-    const [countRows] = await pool.execute(countQuery, params);
-    const total = countRows[0].total;
 
-    // Get paginated results
-    const query = `
+    const [countResult] = await pool.execute(countQuery, params);
+    const total = countResult[0].total;
+    const totalPages = Math.ceil(total / limit);
+
+    // Get paginated data
+    const dataQuery = `
       SELECT
         p.paper_id,
         p.paper_title,
@@ -541,23 +541,23 @@ app.get("/api/reviewable-papers", async (req, res) => {
         v.year,
         COUNT(DISTINCT r.review_id) AS review_count
       FROM Papers p
-      LEFT JOIN Venues v ON p.venue_id COLLATE utf8mb4_0900_ai_ci = v.venue_id COLLATE utf8mb4_0900_ai_ci
-      LEFT JOIN Reviews r ON p.paper_id COLLATE utf8mb4_0900_ai_ci = r.paper_id COLLATE utf8mb4_0900_ai_ci
+      LEFT JOIN Venues v ON p.venue_id = v.venue_id
+      LEFT JOIN Reviews r ON p.paper_id = r.paper_id
       WHERE ${whereClause}
       GROUP BY p.paper_id, p.paper_title, p.abstract, p.pdf_url, p.upload_timestamp, p.status, v.venue_name, v.year
       ORDER BY p.upload_timestamp DESC
       LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
     `;
 
-    const [rows] = await pool.execute(query, params);
+    const [papers] = await pool.execute(dataQuery, params);
 
-    return res.json({
-      papers: rows,
+    res.json({
+      papers,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: parseInt(total),
-        totalPages: Math.ceil(total / limit)
+        page,
+        limit,
+        total,
+        totalPages
       }
     });
   } catch (e) {
@@ -591,8 +591,8 @@ app.get("/api/advanced/query1", async (req, res) => {
         p.status,
         COUNT(r.review_id) as review_count
       FROM Authorship a
-      INNER JOIN Papers p ON a.paper_id COLLATE utf8mb4_0900_ai_ci = p.paper_id COLLATE utf8mb4_0900_ai_ci
-      LEFT JOIN Reviews r ON p.paper_id COLLATE utf8mb4_0900_ai_ci = r.paper_id COLLATE utf8mb4_0900_ai_ci
+      INNER JOIN Papers p ON a.paper_id = p.paper_id
+      LEFT JOIN Reviews r ON p.paper_id = r.paper_id
       WHERE a.user_id = ? 
         AND p.upload_timestamp >= ?
         AND p.project_id IS NOT NULL
@@ -625,7 +625,7 @@ app.get("/api/advanced/query2", async (req, res) => {
         v.year,
         COUNT(p.paper_id) as total_papers
       FROM Venues v
-      INNER JOIN Papers p ON v.venue_id COLLATE utf8mb4_0900_ai_ci = p.venue_id COLLATE utf8mb4_0900_ai_ci
+      INNER JOIN Papers p ON v.venue_id = p.venue_id
       WHERE v.year >= ? AND p.status = 'Published'
       GROUP BY v.venue_id, v.venue_name, v.venue_type, v.publisher, v.year
       ORDER BY v.year DESC, total_papers DESC
@@ -659,7 +659,7 @@ app.get("/api/advanced/query3", async (req, res) => {
         COUNT(r.review_id) as total_reviews_received,
         COUNT(DISTINCT a.paper_id) as papers_reviewed
       FROM Reviews r
-      INNER JOIN Authorship a ON r.paper_id COLLATE utf8mb4_0900_ai_ci = a.paper_id COLLATE utf8mb4_0900_ai_ci
+      INNER JOIN Authorship a ON r.paper_id = a.paper_id
       INNER JOIN Users u ON a.user_id = u.user_id
       WHERE r.review_timestamp BETWEEN ? AND ?
         AND u.is_reviewer = true
@@ -698,8 +698,8 @@ app.get("/api/advanced/query4", async (req, res) => {
         COUNT(r.review_id) as review_count,
         MAX(r.review_timestamp) as last_review_at
       FROM Authorship a
-      INNER JOIN Papers p ON a.paper_id COLLATE utf8mb4_0900_ai_ci = p.paper_id COLLATE utf8mb4_0900_ai_ci
-      LEFT JOIN Reviews r ON p.paper_id COLLATE utf8mb4_0900_ai_ci = r.paper_id COLLATE utf8mb4_0900_ai_ci
+      INNER JOIN Papers p ON a.paper_id = p.paper_id
+      LEFT JOIN Reviews r ON p.paper_id = r.paper_id
       WHERE a.user_id = ?
       GROUP BY p.paper_id, p.paper_title, p.upload_timestamp, p.status
       ORDER BY review_count DESC, last_review_at DESC

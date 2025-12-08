@@ -1,0 +1,4 @@
+Trigger Name	Event	Table	Timing	Created
+trg_ai_paper_before_update	UPDATE	Papers	BEFORE	2025-12-07 19:29:29.56
+trg_reviews_set_timestamp	INSERT	Reviews	BEFORE	2025-12-07 19:29:29.34
+trg_no_self_review	INSERT	Reviews	BEFORE	2025-12-07 19:29:29.46

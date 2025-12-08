@@ -61,7 +61,7 @@ export default function ReviewPapersPage() {
     if (currentUser) {
       loadReviewablePapers()
     }
-  }, [currentUser, pagination.page, pagination.limit, filters])
+  }, [currentUser, pagination.page, pagination.limit])
 
   // Load reviews when a paper is selected
   useEffect(() => {
