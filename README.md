@@ -2,6 +2,26 @@
 
 Full-stack application for managing research papers, reviews, and author insights.
 
+## 🚀 Live Demo
+
+**Application URL:** [https://paperscope-frontend-ahrq6r24nq-uc.a.run.app](https://paperscope-frontend-ahrq6r24nq-uc.a.run.app)
+
+### Demo Login Credentials
+
+For reviewers and interviewers to test the application:
+
+- **Username:** `U001`
+- **Password:** `Emery@123`
+
+**Note:** This is a public demo instance. The application includes:
+- Full paper management (create, edit, delete, search)
+- Author insights and portfolio tracking
+- Peer review system
+- AI-powered paper recommendations (Google Gemini LLM)
+- Batch paper creation with advanced transactions
+
+---
+
 ## Features
 
 - Paper management (create, edit, delete, search)
@@ -13,9 +33,10 @@ Full-stack application for managing research papers, reviews, and author insight
 ## Technology Stack
 
 - **Backend:** Node.js + Express
-- **Database:** MySQL (GCP-hosted)
+- **Database:** MySQL (GCP Cloud SQL)
 - **Frontend:** React + Vite
-- **AI:** Google Vertex AI
+- **AI:** Google Vertex AI (Gemini 2.5 Flash)
+- **Deployment:** Google Cloud Platform (Cloud Run)
 
 ## Setup
 
