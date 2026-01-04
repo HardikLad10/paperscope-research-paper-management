@@ -1,0 +1,44 @@
+steps:
+  # Build the frontend with environment variable
+  - name: 'node:22'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        npm ci
+        export VITE_API_BASE_URL=${_API_BASE_URL}
+        echo "Building with VITE_API_BASE_URL=${VITE_API_BASE_URL}"
+        npm run build
+  
+  # Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/paperscope-frontend:$SHORT_SHA'
+      - '-f'
+      - 'Dockerfile.prod'
+      - '.'
+  
+  # Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/paperscope-frontend:$SHORT_SHA']
+  
+  # Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'paperscope-frontend'
+      - '--image=gcr.io/$PROJECT_ID/paperscope-frontend:$SHORT_SHA'
+      - '--region=us-central1'
+      - '--allow-unauthenticated'
+      - '--platform=managed'
+      - '--memory=256Mi'
+
+substitutions:
+  _API_BASE_URL: 'https://paperscope-api-XXXXX-uc.a.run.app'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+

@@ -1,0 +1,113 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Service account keys and credentials
+*-*.json
+gen-lang-client-*.json
+*.key.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!vercel.json
+!api/vercel.json
+!frontend/vercel.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Troubleshooting/one-time fix markdown files
+WHY_STILL_LOCALHOST.md
+fix-frontend-api-url.md
+fix-deployed-frontend.md
+TROUBLESHOOT_API.md
+DB_CONNECTION_TROUBLESHOOT.md
+QUICK_FIX_DB.md
+FINAL_DB_FIX.md
+CLOUDRUN_CONNECTION_ISSUE.md
+SSL_CONNECTION_FIX.md
+fix-schema-connection.md
+VERIFY_DB_CONNECTION.md
+CHECK_DB_STATUS.md
+FIND_DB_IP.md
+TEAMMATE_DB_TEST.md
+
+# Obsolete setup guides
+DEPLOY_NOW.md
+DEPLOY_QUICK_START.md
+DEPLOY.md
+FRESH_START_GUIDE.md
+CREATE_OWN_DB.md
+SIMPLE_FRIEND_DB_SETUP.md
+TEAMMATE_INSTRUCTIONS.md
+TEAMMATE_UNIX_SOCKET_SETUP.md
+SWITCH_TO_UNIX_SOCKET.md
+CLOUDSHELL_INSTRUCTIONS.md
+cloudshell-alternative.md
+NEXT_STEPS.md
+QUICK_CHECK.md
+INSTALL_GCLOUD.md
+
+# Utility/test scripts
+test-api-endpoints.sh
+test-api.sh
+test-db-connection.sh
+check-db-status.sh
+get-db-ip.sh
+list-sql-instances.sh
+authorize-my-ip.sh
+fresh-start.sh
+continue-setup.sh
+create-schema.sh
+cleanup-files.sh
+
+# Text/command files
+cloudshell-commands.txt
+cloudshell-schema-commands.txt
+
+# Temporary SQL files
+populate_database_ignore_duplicates.sql
+

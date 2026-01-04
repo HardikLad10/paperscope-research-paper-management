@@ -1,0 +1,19 @@
+Table	Constraint Name	Type	Column	References Table	References Column
+Authorship	fk_authorship_paper	FOREIGN KEY	paper_id	Papers	paper_id
+Authorship	fk_authorship_user	FOREIGN KEY	user_id	Users	user_id
+Papers	chk_ai_flag	CHECK	NULL	NULL	NULL
+Papers	chk_papers_timestamp_when_active	CHECK	NULL	NULL	NULL
+Papers	fk_papers_dataset	FOREIGN KEY	dataset_id	Datasets	dataset_id
+Papers	fk_papers_project	FOREIGN KEY	project_id	Projects	project_id
+Papers	fk_papers_source	FOREIGN KEY	source_paper_id	Papers	paper_id
+Papers	fk_papers_venue	FOREIGN KEY	venue_id	Venues	venue_id
+Papers	uq_papers_venue_title	UNIQUE	paper_title	NULL	NULL
+Papers	uq_papers_venue_title	UNIQUE	venue_id	NULL	NULL
+RelatedPapers	chk_no_self_relation	CHECK	NULL	NULL	NULL
+RelatedPapers	fk_related_main	FOREIGN KEY	paper_id	Papers	paper_id
+RelatedPapers	fk_related_secondary	FOREIGN KEY	related_paper_id	Papers	paper_id
+Reviews	chk_reviews_comment_nonempty	CHECK	NULL	NULL	NULL
+Reviews	fk_reviews_paper	FOREIGN KEY	paper_id	Papers	paper_id
+Reviews	fk_reviews_user	FOREIGN KEY	user_id	Users	user_id
+Users	chk_users_email_format	CHECK	NULL	NULL	NULL
+Users	email	UNIQUE	email	NULL	NULL
